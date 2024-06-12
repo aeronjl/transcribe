@@ -11,8 +11,11 @@ from io import BytesIO
 from openai import OpenAI
 from pydub import AudioSegment
 import tiktoken
+from . import whisper
+from .openai import OpenAIClient
 
-client = OpenAI()
+client = OpenAIClient()
+openai = client.get_openai()
 encoding = tiktoken.get_encoding("cl100k_base")
 
 def convert_audio_to_wav(filename, filetype):
@@ -39,20 +42,7 @@ def segment_audio(audio_file, segment_duration):
     return audio_segments
 
 
-def transcribe_audio_segment(audio_buffer):
-    """
-    Call Whisper transcription for a short sample of audio.
-    """
-    
-    transcription = client.audio.transcriptions.create(
-        model="whisper-1",
-        file=audio_buffer,
-        language="en",
-        response_format="verbose_json",
-        temperature=0.2
-    )
-    
-    return transcription.segments
+
 
 def convert_to_timestamp(seconds):
     td = datetime.timedelta(seconds=seconds)
@@ -70,7 +60,7 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
         buffer.name = "buffer.wav"
         audio_segment.export(buffer, format="wav")
         buffer.seek(0)
-        transcribed_audio_segment = transcribe_audio_segment(buffer)
+        transcribed_audio_segment = whisper.transcribe_audio_segment(buffer)
         if index == 0:
             last_text_segment_id = transcribed_audio_segment[-1]['id']
             pass
@@ -170,7 +160,7 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
     processed_chunks = []
     for index, chunk in enumerate(chunks):
         if index == 0:
-            completion = client.chat.completions.create(
+            completion = openai.chat.completions.create(
                 model="gpt-4o",
                 response_format={ "type" : "json_object" },
                 messages=[
@@ -196,7 +186,7 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
             "{chunk_items[-1][0]}" : {chunk_items[-1][1]}
             """
 
-            completion = client.chat.completions.create(
+            completion = openai.chat.completions.create(
                 model="gpt-4o",
                 response_format={ "type" : "json_object" },
                 messages=[

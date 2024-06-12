@@ -1,6 +1,6 @@
 import argparse
 import os
-from . import transcribe as ts
+from . import utils as ts
 
 def main():
     parser = argparse.ArgumentParser(description="Transcribe an audio file")
