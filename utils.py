@@ -17,7 +17,7 @@ encoding = tiktoken.get_encoding("cl100k_base")
 def convert_audio_to_wav(filename, filetype):
     stream = ffmpeg.input(f"{filename}{filetype}")
     stream = ffmpeg.output(stream, f"{filename}.wav")
-    ffmpeg.run(stream, overwrite_output=True)
+    ffmpeg.run(stream, quiet=True, overwrite_output=True)
     return None
     
 def segment_audio(audio_file, segment_duration):
