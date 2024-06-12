@@ -1,6 +1,7 @@
 """
 """
 
+import argparse
 import datetime
 import ffmpeg
 import numpy as np
@@ -223,3 +224,16 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
             json.dump(combined_processed_chunks, json_file)
     
     return combined_transcript_segments, combined_processed_chunks
+
+def main():
+    parser = argparse.ArgumentParser(description="Transcribe an audio file")
+    parser.add_argument("--input", "-i", type=str, help="Input file path")
+    args = parser.parse_args()
+    
+    input_file = args.input
+
+if __name__ == "__main__":
+    main()
+    
+    
+    
