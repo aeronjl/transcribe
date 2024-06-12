@@ -5,6 +5,7 @@ import datetime
 import ffmpeg
 import numpy as np
 import json
+import os
 from io import BytesIO
 from pydub import AudioSegment
 import tiktoken
@@ -102,7 +103,10 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
                 chunks.append(text_buffer)
                 text_buffer = ''
     
-    with open("prompt.txt", "r") as f:
+    module_path = os.path.abspath(__file__)
+    prompt_path = os.path.join(os.path.dirname(module_path), "data", "prompt.txt")
+    
+    with open(prompt_path, "r") as f:
         system_prompt = f.read()
     print(system_prompt)
                 
