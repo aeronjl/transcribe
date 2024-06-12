@@ -1,14 +1,11 @@
 """
 """
 
-import argparse
 import datetime
 import ffmpeg
 import numpy as np
 import json
-import os
 from io import BytesIO
-from openai import OpenAI
 from pydub import AudioSegment
 import tiktoken
 from . import whisper, gpt
@@ -50,6 +47,8 @@ def convert_to_timestamp(seconds):
 
 def transcribe_audio_segments(audio_segments, filename, save=True):
     transcribed_audio_segments = []
+    n_segments = len(audio_segments)
+    print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
     for index, audio_segment in enumerate(audio_segments):
         buffer = BytesIO()
         buffer.name = "buffer.wav"
@@ -102,55 +101,10 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
             if text_buffer.strip().endswith('.'):
                 chunks.append(text_buffer)
                 text_buffer = ''
-                
-    system_prompt = """
-    You are a helpful assistant whose job it is to label a transcript according to who is speaking.
-    You will see a transcript from a conversation between an interviewer and at least one respondent.
-    Reorganise and label the transcript so it is clear who is speaking. Guess the name of the respondent from the context where possible.
-    Remove filler words and phrases without changing the meaning of the transcript.
-    Only add necessary punctuation such as periods, commas, and capitalization, and use only the context provided.
-    Return your response as a JSON.
-
-    Example 1:
-
-    Hi there, how are you, you know, doing today Emily? I'm um fine, thank you. Great. I'm going to show you some you know marketing materials. Is that okay? I mean, yes. No problem.
-
-    {
-        "1" : {
-            "Speaker" : "Interviewer",
-            "Content" : "Hi there, how are you doing today Emily?"
-        },
-        "2" : {
-            "Speaker" : "Respondent 1 (Emily)",
-            "Content" : "I'm fine, thank you!"
-        },
-        "3" : {
-            "Speaker" : "Interviewer",
-            "Content" : "Great. I'm going to show you some marketing materials. Is that okay?"
-        }
-        "4" : {
-            "Speaker" : "Respondent 1 (Emily)",
-            "Content" : "Yes. No problem."
-        }
-    }
-
-    Example 2:
-
-    It's hard because, you know, there are so many, um, things to consider. I mean, you know, it's not easy. I mean, it's not easy at all. I see. Thank you, Doctor. For our next exercise we're going to look at some headline statements. Take a look at these and tell me what you think.
-
-    {
-        "1" : {
-            "Speaker" : "Respondent 1",
-            "Content" : "It's hard because there are so many things to consider. It's not easy. It's not easy at all."
-        },
-        "2": {
-            "Speaker" : "Interviewer",
-            "Content" : "I see. Thank you, Doctor. For our next exercise we're going to look at some headline statements. Take a look at these and tell me what you think."
-        }
-    }
-
-
-    """
+    
+    with open("prompt.txt", "r") as f:
+        system_prompt = f.read()
+    print(system_prompt)
                 
     processed_chunks = []
     for index, chunk in enumerate(chunks):
