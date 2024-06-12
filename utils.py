@@ -11,11 +11,9 @@ from io import BytesIO
 from openai import OpenAI
 from pydub import AudioSegment
 import tiktoken
-from . import whisper
+from . import whisper, gpt
 from .openai import OpenAIClient
 
-client = OpenAIClient()
-openai = client.get_openai()
 encoding = tiktoken.get_encoding("cl100k_base")
 
 def convert_audio_to_wav(filename, filetype):
@@ -40,9 +38,6 @@ def segment_audio(audio_file, segment_duration):
         audio_segments.append(audio_to_segment[start_time:end_time])
     
     return audio_segments
-
-
-
 
 def convert_to_timestamp(seconds):
     td = datetime.timedelta(seconds=seconds)
@@ -110,7 +105,7 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
                 
     system_prompt = """
     You are a helpful assistant whose job it is to label a transcript according to who is speaking.
-    You will see a transcript from a conversation between an interviewer and three respondents.
+    You will see a transcript from a conversation between an interviewer and at least one respondent.
     Reorganise and label the transcript so it is clear who is speaking. Guess the name of the respondent from the context where possible.
     Remove filler words and phrases without changing the meaning of the transcript.
     Only add necessary punctuation such as periods, commas, and capitalization, and use only the context provided.
@@ -160,21 +155,7 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
     processed_chunks = []
     for index, chunk in enumerate(chunks):
         if index == 0:
-            completion = openai.chat.completions.create(
-                model="gpt-4o",
-                response_format={ "type" : "json_object" },
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": chunk
-                    }
-                ],
-                temperature=0.2
-            )
+            completion = gpt.process_transcription(chunk, system_prompt)
         else:
             annotated_system_prompt = system_prompt + f"""
             ---
@@ -185,22 +166,7 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
             "{chunk_items[-2][0]}" : {chunk_items[-2][1]},
             "{chunk_items[-1][0]}" : {chunk_items[-1][1]}
             """
-
-            completion = openai.chat.completions.create(
-                model="gpt-4o",
-                response_format={ "type" : "json_object" },
-                messages=[
-                    {
-                        "role": "system",
-                        "content": annotated_system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": chunk
-                    }
-                ],
-                temperature=0.2
-            )
+            completion = gpt.process_transcription(chunk, annotated_system_prompt)
         print(f"Processed chunk at index {index}")
         print(f"Finish reason: {completion.choices[0].finish_reason}")
         
