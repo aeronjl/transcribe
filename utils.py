@@ -110,7 +110,7 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
         system_prompt = f.read()
     
     n_transcript_chunks = len(chunks)
-    print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 22} seconds.")            
+    print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")            
     processed_chunks = []
     for index, chunk in enumerate(chunks):
         if index == 0:
