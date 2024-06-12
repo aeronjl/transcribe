@@ -155,6 +155,3 @@ def transcribe_audio_segments(audio_segments, filename, save=True):
             json.dump(combined_processed_chunks, json_file)
     
     return combined_transcript_segments, combined_processed_chunks
-    
-    
-    
