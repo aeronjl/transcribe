@@ -13,10 +13,23 @@ from .openai import OpenAIClient
 
 encoding = tiktoken.get_encoding("cl100k_base")
 
-def convert_audio_to_wav(filename, filetype):
-    stream = ffmpeg.input(f"{filename}{filetype}")
-    stream = ffmpeg.output(stream, f"{filename}.wav")
-    ffmpeg.run(stream, quiet=True, overwrite_output=True)
+def split_filepath(filepath):
+    filename, extension = os.path.splitext(filepath)
+    print(f"Filename: {filename}, Extension: {extension}")
+    return filename, extension  
+
+def convert_input_to_wav(filename, filetype):
+    try: 
+        (
+            ffmpeg
+            .input(f"{filename}{filetype}")
+            .output(f"{filename}.wav")
+            .global_args('-loglevel', 'error')
+            .run(capture_stdout=True, capture_stderr=True, overwrite_output=True)
+        )
+    except ffmpeg.Error as e:
+        print('stdout:', e.stdout.decode('utf8'))
+        print('stderr:', e.stderr.decode('utf8'))
     return None
     
 def segment_audio(audio_file, segment_duration):
@@ -45,20 +58,18 @@ def convert_to_timestamp(seconds):
     timestamp = "{:02}:{:02}:{:02}".format(int(hours), int(minutes), int(seconds))
     return timestamp
 
-def buffer_audio_segment_and_transcribe(audio_segment, index):
+def buffer_audio(audio):
     buffer = BytesIO()
     buffer.name = "buffer.wav"
-    audio_segment.export(buffer, format="wav")
+    audio.export(buffer, format="wav")
     buffer.seek(0)
-    transcribed_audio_segment = whisper.transcribe_audio_segment(buffer)
-    print(f"Index: {index}")
-    if index == 0:
-        last_text_segment_id = transcribed_audio_segment[-1]['id']
-        pass
-    else:
-        for index, text_segment in enumerate(transcribed_audio_segment):
-            text_segment['id'] = last_text_segment_id + index + 1
-        last_text_segment_id = transcribed_audio_segment[-1]['id']
+    return buffer
+
+def renumber_transcribed_audio_segment(transcribed_audio_segment, number_to_start_from=0, time_to_start_from=0):
+    for phrase_index, phrase in enumerate(transcribed_audio_segment):
+        phrase['id'] = number_to_start_from + phrase_index + 1
+        phrase['start'] = phrase['start'] + time_to_start_from
+        phrase['end'] = phrase['end'] + time_to_start_from
     return transcribed_audio_segment
 
 def chunk_transcript_to_token_limit(transcript_segments, token_limit=1200):
@@ -116,43 +127,3 @@ def process_transcription(chunks):
         
     combined_processed_chunks =  {key: value for d in processed_chunks for key, value in d.items()}
     return combined_processed_chunks
-
-def transcribe_audio_segments(audio_segments, filename, save=True):
-    n_segments = len(audio_segments)
-    print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
-    
-    transcribed_audio_segments = []
-    for index, audio_segment in enumerate(audio_segments):
-        transcribed_audio_segment = buffer_audio_segment_and_transcribe(audio_segment, index)
-        transcribed_audio_segments.append(transcribed_audio_segment)
-
-    for index, segment in enumerate(transcribed_audio_segments):
-        if index == 0:
-            last_end_time = 0
-        else:
-            previous_index = index - 1
-            last_end_time = transcribed_audio_segments[previous_index][-1]['end']
-        for phrase_index, phrase in enumerate(segment):
-            transcribed_audio_segments[index][phrase_index]['start'] = phrase['start'] + last_end_time
-            transcribed_audio_segments[index][phrase_index]['end'] = phrase['end'] + last_end_time
-            
-    combined_transcript_segments = [item for sublist in transcribed_audio_segments for item in sublist]
-    
-    for index, segment in enumerate(combined_transcript_segments):
-        combined_transcript_segments[index]['start'] = convert_to_timestamp(segment['start'])
-        combined_transcript_segments[index]['end'] = convert_to_timestamp(segment['end'])
-        
-    if save:
-        with open(f'{filename}_whisper_output.json', 'w') as json_file:
-            json.dump(combined_transcript_segments, json_file)
-            
-    chunks, n_transcript_chunks = chunk_transcript_to_token_limit(combined_transcript_segments, token_limit=1200)    
-    
-    print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")  
-    
-    combined_processed_chunks = process_transcription(chunks)
-    if save:
-        with open(f'{filename}_final_output.json', 'w') as json_file:
-            json.dump(combined_processed_chunks, json_file)
-    
-    return combined_transcript_segments, combined_processed_chunks
