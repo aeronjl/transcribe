@@ -51,6 +51,7 @@ def buffer_audio_segment_and_transcribe(audio_segment, index):
     audio_segment.export(buffer, format="wav")
     buffer.seek(0)
     transcribed_audio_segment = whisper.transcribe_audio_segment(buffer)
+    print(f"Index: {index}")
     if index == 0:
         last_text_segment_id = transcribed_audio_segment[-1]['id']
         pass
