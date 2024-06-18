@@ -1,9 +1,11 @@
 import os
 import json
 from . import utils, whisper
+from IPython.display import clear_output
 
-
-
+def clear_console():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
 def transcribe_audio(input_filepath, save=True):
     """
     """
@@ -18,6 +20,9 @@ def transcribe_audio(input_filepath, save=True):
     # Segment the audio file into smaller chunks for transcribing
     audio_segments = utils.segment_audio(f"{filename}.wav", 100000)
     n_segments = len(audio_segments)
+    
+    clear_output()
+    clear_console()
     
     print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
     
@@ -52,6 +57,9 @@ def transcribe_audio(input_filepath, save=True):
     # Chunk the transcript segments to a token limit
     chunks, n_transcript_chunks = utils.chunk_transcript_to_token_limit(combined_transcript_segments, token_limit=1200)    
 
+    clear_output()
+    clear_console()
+    
     # Process the transcription chunks with GPT-4o
     print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")  
     combined_processed_chunks = utils.process_transcription(chunks)
