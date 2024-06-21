@@ -11,8 +11,12 @@ setup(
     url="https://github.com/aeronjl/transcribe",
     packages=find_packages(exclude=["tests*"]),
     install_requires=[
-        "dependency1>=1.0.0",
-        "dependency2>=2.1.0",
+        "openai",
+        "numpy",
+        "ffmpeg-python",
+        "pydub",
+        "tiktoken",
+        
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
