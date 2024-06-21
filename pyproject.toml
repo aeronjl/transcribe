@@ -23,7 +23,7 @@ dependencies = [
         "tiktoken",
         "python-dotenv"
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.9"
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov"]
