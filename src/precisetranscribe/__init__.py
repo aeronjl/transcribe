@@ -1,6 +1,6 @@
 from . import utils, whisper
 
-def transcribe_audio(wav_data):
+def transcribe_audio(wav_data, save=False, filename=None):
     """
     Transcribes audio data from a WAV file in segmented chunks, processes each segment,
     and saves the results as JSON files.
@@ -36,8 +36,8 @@ def transcribe_audio(wav_data):
     transcribed_audio_segments = []
     for index, audio_segment in enumerate(audio_segments):
         print(f"Transcribing audio segment {index + 1}/{n_segments}")
-        buffer = utils.buffer_audio(audio_segment)
-        transcribed_audio_segment = whisper.transcribe_audio_segment(buffer)
+        
+        transcribed_audio_segment = whisper.transcribe_audio_segment(audio_segment)
         if index == 0:
             # No need to renumber the first segment
             last_text_segment_id = transcribed_audio_segment[-1]['id']
@@ -64,4 +64,7 @@ def transcribe_audio(wav_data):
     print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")  
     combined_processed_chunks = utils.process_transcription(chunks)
 
+    if save:
+        utils.save_final_output(combined_processed_chunks, filename)
+        
     return combined_transcript_segments, combined_processed_chunks
