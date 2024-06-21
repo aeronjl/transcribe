@@ -55,7 +55,6 @@ def transcribe_audio(input_filepath, save=True):
     # Chunk the transcript segments to a token limit
     chunks, n_transcript_chunks = utils.chunk_transcript_to_token_limit(combined_transcript_segments, token_limit=1200)    
 
-    clear_output()
     clear_console()
     
     # Process the transcription chunks with GPT-4o
