@@ -15,7 +15,7 @@ def transcribe_audio(input_file, filename='transcription', save=True):
     #    raise ValueError(f"No file extension found for {input_filepath}")
     
     # Convert the input file to WAV format
-    utils.convert_input_to_wav(input_file)
+    utils.convert_to_wav(input_file)
     
     # Segment the audio file into smaller chunks for transcribing
     audio_segments = utils.segment_audio(input_file, 100000)
