@@ -1,20 +1,38 @@
-import os
 import json
+import os
+
 from . import utils, whisper
 
-
-def clear_console():
-    os.system('cls' if os.name == 'nt' else 'clear')
-    
 def transcribe_audio(wav_data, filename='transcription', save=True):
     """
+    Transcribes audio data from a WAV file in segmented chunks, processes each segment,
+    and saves the results as JSON files.
+
+    Args:
+    - wav_data (bytes): Audio data in WAV format.
+    - filename (str, optional): Base filename for output JSON files (default: 'transcription').
+    - save (bool, optional): Whether to save output JSON files (default: True).
+
+    Returns:
+    - tuple: A tuple containing two lists:
+        - combined_transcript_segments (list): List of all transcribed segments with start/end times.
+        - combined_processed_chunks (list): List of all processed transcript chunks.
+
+    Notes:
+    - Uses utility functions from 'utils' for segmenting audio, buffering, renumbering segments,
+      converting times to timestamps, chunking transcripts, and processing with GPT-4o.
+    - Requires 'whisper' for actual transcription and 'utils' for various utility functions.
+
+    Example usage:
+    >>> audio_data = load_wav_file('audio.wav')
+    >>> transcriptions, processed_chunks = transcribe_audio(audio_data, filename='my_transcription')
     """
     
     # Segment the audio file into smaller chunks for transcribing
     audio_segments = utils.segment_audio(wav_data, 100000)
     n_segments = len(audio_segments)
     
-    clear_console()
+    os.system('cls' if os.name == 'nt' else 'clear')
     
     print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
     
@@ -49,7 +67,7 @@ def transcribe_audio(wav_data, filename='transcription', save=True):
     # Chunk the transcript segments to a token limit
     chunks, n_transcript_chunks = utils.chunk_transcript_to_token_limit(combined_transcript_segments, token_limit=1200)    
 
-    clear_console()
+    os.system('cls' if os.name == 'nt' else 'clear')
     
     # Process the transcription chunks with GPT-4o
     print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")  
