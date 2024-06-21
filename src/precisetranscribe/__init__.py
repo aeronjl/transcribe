@@ -40,20 +40,3 @@ def process_whisper_transcription(transcribed_audio_segments):
         processed_transcript = utils.process_transcription(chunks)
         # os.system('cls' if os.name == 'nt' else 'clear')
         return processed_transcript
-    
-def run(wav_data, save=False, filename=None):
-    """
-    """
-    
-    whisper_output = transcribe_audio(wav_data)
-    
-    if save:
-        utils.save_whisper_output(whisper_output, filename)
-    
-    # 3. Process the Whisper transcription
-    processed_transcript = process_whisper_transcription(whisper_output)
-
-    if save:
-        utils.save_final_output(processed_transcript, filename)
-        
-    return processed_transcript
