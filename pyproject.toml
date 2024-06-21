@@ -34,7 +34,6 @@ Documentation = "https://transcribe.readthedocs.io/"
 Repository = "https://github.com/aeronjl/transcribe.git"
 
 [project.scripts]
-mycli = "precisetranscribe.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
