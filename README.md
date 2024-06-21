@@ -17,3 +17,9 @@ flowchart LR
     D-->C
     D-->E
 ```
+
+# Installation
+
+```bash
+pip install precisetranscribe
+```
