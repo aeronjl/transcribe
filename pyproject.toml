@@ -42,7 +42,7 @@ include = ["your_package_name*"]
 exclude = ["tests*"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=transcribe"
+addopts = ""
 testpaths = [
     "tests",
 ]
