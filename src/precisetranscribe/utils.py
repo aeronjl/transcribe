@@ -11,36 +11,55 @@ import tiktoken
 from . import whisper, gpt
 from .openai import OpenAIClient
 from typing import Tuple
+from contextlib import contextmanager
+import uuid
+import tempfile
 
 encoding = tiktoken.get_encoding("cl100k_base")
 
+@contextmanager
+def temporary_file(suffix=None):
+    """Context manager for creating temporary files."""
+    temp_dir = tempfile.gettempdir()
+    temp_file = os.path.join(temp_dir, f"{uuid.uuid4()}{suffix or ''}")
+    try:
+        yield
+    finally:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+        
 def split_filepath(filepath: str) -> Tuple[str, str]:
     filename, extension = os.path.splitext(filepath)
     print(f"Filename: {filename}, Extension: {extension}")
     return filename, extension  
 
-def convert_input_to_wav(filename: str, filetype: str) -> None:
-    try: 
-        (
-            ffmpeg
-            .input(f"{filename}{filetype}")
-            .output(f"{filename}.wav")
-            .global_args('-loglevel', 'error')
-            .run(capture_stdout=True, capture_stderr=True, overwrite_output=True)
-        )
-    except ffmpeg.Error as e:
-        print('stdout:', e.stdout.decode('utf8'))
-        print('stderr:', e.stderr.decode('utf8'))
-    return None
+def convert_input_to_wav(input_file):
+    with temporary_file() as temp_input, temporary_file('.wav') as temp_output:
+        # Write the input file to a temporary file
+        with open(temp_input, 'wb') as f:
+            f.write(input_file.getvalue())
+            
+        try:
+            stream = ffmpeg.input(temp_input)
+            stream = ffmpeg.output(stream, temp_output, acodec='pcm_s16le', ac=1, ar='16k')
+            ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+            
+            # Read the output file
+            with open(temp_output, 'rb') as f:
+                return f.read()
+        except ffmpeg.Error as e:
+            print('stdout:', e.stdout.decode('utf8'))
+            print('stderr:', e.stderr.decode('utf8'))
+            return None
     
-def segment_audio(wav_filepath: str, segment_duration: int) -> list[AudioSegment]:
+def segment_audio(wav_data, segment_duration: int) -> list[AudioSegment]:
     """
     Segments an audio file into smaller chunks.
     """
     def check_segment_end_time(proposed_end_time, max_total_duration):
         return proposed_end_time if proposed_end_time < max_total_duration else max_total_duration
     
-    audio_to_segment = AudioSegment.from_file(wav_filepath, format="wav")
+    audio_to_segment = AudioSegment.from_wav(BytesIO(wav_data))
     audio_duration = len(audio_to_segment)
     n_segments = int(np.ceil(audio_duration / segment_duration))
     audio_segments = []
