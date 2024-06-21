@@ -191,32 +191,3 @@ def generate_system_prompt(speakers=None):
     system_prompt = system_prompt + examples
     
     return system_prompt
-
-def process_transcription(chunks, speakers=None):
-    system_prompt = generate_system_prompt(speakers)
-    processed_chunks = []
-    
-    prompt = system_prompt
-    for index, chunk in enumerate(chunks):
-        completion = gpt.process_transcription(chunk, prompt)
-        processed_chunk = json.loads(completion.choices[0].message.content)
-        processed_chunks.append(processed_chunk)
-        chunk_items = list(processed_chunk.items())
-        
-        print(f"Processed chunk at index {index}")
-        print(f"Finish reason: {completion.choices[0].finish_reason}")
-        
-        if index > 0:
-            prompt = system_prompt + f"""
-            ---
-            You are continuing on from a previous transcription which ended as follows:
-
-            "{chunk_items[-4][0]}" : {chunk_items[-4][1]},
-            "{chunk_items[-3][0]}" : {chunk_items[-3][1]},
-            "{chunk_items[-2][0]}" : {chunk_items[-2][1]},
-            "{chunk_items[-1][0]}" : {chunk_items[-1][1]}
-            """
-    
-    # Combine the processed chunks        
-    combined_processed_chunks =  {key: value for d in processed_chunks for key, value in d.items()}
-    return combined_processed_chunks

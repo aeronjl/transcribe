@@ -1,4 +1,5 @@
-from . import utils, whisper
+import json
+from . import utils, whisper, gpt
 
 def transcribe_audio(wav_data):
     """
@@ -29,14 +30,36 @@ def transcribe_audio(wav_data):
         combined_transcript_segments[index]['end'] = utils.convert_to_timestamp(segment['end'])  
         
     return combined_transcript_segments
-
+    
 def process_whisper_transcription(transcribed_audio_segments, speakers=None):
-        """
-        """
-        # Rearrange the transcript segments into chunks which fit the token limit
-        chunks, n_transcript_chunks = utils.chunk_transcript_to_token_limit(transcribed_audio_segments, token_limit=1200)    
+    # Rearrange the transcript segments into chunks which fit the token limit
+    chunks, n_transcript_chunks = utils.chunk_transcript_to_token_limit(transcribed_audio_segments, token_limit=1200)    
+    print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")
+        
+    system_prompt = utils.generate_system_prompt(speakers)
+    processed_chunks = []
+    
+    prompt = system_prompt
+    for index, chunk in enumerate(chunks):
+        completion = gpt.process_transcription(chunk, prompt)
+        processed_chunk = json.loads(completion.choices[0].message.content)
+        processed_chunks.append(processed_chunk)
+        chunk_items = list(processed_chunk.items())
+        
+        print(f"Processed chunk at index {index}")
+        print(f"Finish reason: {completion.choices[0].finish_reason}")
+        
+        if index > 0:
+            prompt = system_prompt + f"""
+            ---
+            You are continuing on from a previous transcription which ended as follows:
 
-        print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")  
-        processed_transcript = utils.process_transcription(chunks, speakers)
-        # os.system('cls' if os.name == 'nt' else 'clear')
-        return processed_transcript
+            "{chunk_items[-4][0]}" : {chunk_items[-4][1]},
+            "{chunk_items[-3][0]}" : {chunk_items[-3][1]},
+            "{chunk_items[-2][0]}" : {chunk_items[-2][1]},
+            "{chunk_items[-1][0]}" : {chunk_items[-1][1]}
+            """
+    
+    # Combine the processed chunks        
+    processed_transcript =  {key: value for d in processed_chunks for key, value in d.items()}
+    return processed_transcript
