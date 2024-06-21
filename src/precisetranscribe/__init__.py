@@ -30,13 +30,13 @@ def transcribe_audio(wav_data):
         
     return combined_transcript_segments
 
-def process_whisper_transcription(transcribed_audio_segments):
+def process_whisper_transcription(transcribed_audio_segments, speakers=None):
         """
         """
         # Rearrange the transcript segments into chunks which fit the token limit
         chunks, n_transcript_chunks = utils.chunk_transcript_to_token_limit(transcribed_audio_segments, token_limit=1200)    
 
         print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")  
-        processed_transcript = utils.process_transcription(chunks)
+        processed_transcript = utils.process_transcription(chunks, speakers)
         # os.system('cls' if os.name == 'nt' else 'clear')
         return processed_transcript
