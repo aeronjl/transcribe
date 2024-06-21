@@ -1,6 +1,3 @@
-import json
-import os
-
 from . import utils, whisper
 
 def transcribe_audio(wav_data):
@@ -31,7 +28,7 @@ def transcribe_audio(wav_data):
     audio_segments = utils.segment_audio(wav_data, 100000)
     n_segments = len(audio_segments)
     
-    os.system('cls' if os.name == 'nt' else 'clear')
+    # os.system('cls' if os.name == 'nt' else 'clear')
     
     print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
     
@@ -61,7 +58,7 @@ def transcribe_audio(wav_data):
     # Chunk the transcript segments to a token limit
     chunks, n_transcript_chunks = utils.chunk_transcript_to_token_limit(combined_transcript_segments, token_limit=1200)    
 
-    os.system('cls' if os.name == 'nt' else 'clear')
+    # os.system('cls' if os.name == 'nt' else 'clear')
     
     # Process the transcription chunks with GPT-4o
     print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")  
