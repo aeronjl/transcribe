@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "precisetranscribe"
-version = "0.1.4"
+version = "0.1.5"
 description = "Utilities for transcribing audio files using the Whisper API."
 readme = "README.md"
 authors = [{ name = "Aeron Laffere", email = "ajlaffere@gmail.com" }]

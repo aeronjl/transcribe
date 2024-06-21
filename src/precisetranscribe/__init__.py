@@ -6,7 +6,7 @@ from . import utils, whisper
 def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
     
-def transcribe_audio(input_file, save=True):
+def transcribe_audio(input_file, filename='transcription', save=True):
     """
     """
     # Split the input filepath into filename and extension
