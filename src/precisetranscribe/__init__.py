@@ -6,19 +6,12 @@ from . import utils, whisper
 def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
     
-def transcribe_audio(input_file, filename='transcription', save=True):
+def transcribe_audio(wav_data, filename='transcription', save=True):
     """
     """
-    # Split the input filepath into filename and extension
-    #filename, extension = utils.split_filepath(input_filepath)
-    #if not extension:
-    #    raise ValueError(f"No file extension found for {input_filepath}")
-    
-    # Convert the input file to WAV format
-    utils.convert_to_wav(input_file)
     
     # Segment the audio file into smaller chunks for transcribing
-    audio_segments = utils.segment_audio(input_file, 100000)
+    audio_segments = utils.segment_audio(wav_data, 100000)
     n_segments = len(audio_segments)
     
     clear_console()
