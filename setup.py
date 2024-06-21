@@ -16,6 +16,7 @@ setup(
         "ffmpeg-python",
         "pydub",
         "tiktoken",
+        "python-dotenv"
         
     ],
     classifiers=[
