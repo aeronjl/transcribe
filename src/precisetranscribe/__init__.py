@@ -1,7 +1,6 @@
 import os
 import json
 from . import utils, whisper
-from IPython.display import clear_output
 
 def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -21,7 +20,6 @@ def transcribe_audio(input_filepath, save=True):
     audio_segments = utils.segment_audio(f"{filename}.wav", 100000)
     n_segments = len(audio_segments)
     
-    clear_output()
     clear_console()
     
     print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
