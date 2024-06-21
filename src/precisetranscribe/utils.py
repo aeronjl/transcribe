@@ -59,6 +59,7 @@ def segment_audio(wav_data, segment_duration: int) -> list[AudioSegment]:
     def check_segment_end_time(proposed_end_time, max_total_duration):
         return proposed_end_time if proposed_end_time < max_total_duration else max_total_duration
     
+    wav_data = BytesIO(wav_data)
     wav_data = wav_data.seek(0)
     
     audio_to_segment = AudioSegment.from_wav(BytesIO(wav_data))
