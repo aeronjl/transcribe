@@ -34,11 +34,11 @@ Documentation = "https://transcribe.readthedocs.io/"
 Repository = "https://github.com/aeronjl/transcribe.git"
 
 [project.scripts]
-mycli = "transcribe.cli:main"
+mycli = "precisetranscribe.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["your_package_name*"]
+include = ["precisetranscribe*"]
 exclude = ["tests*"]
 
 [tool.pytest.ini_options]
