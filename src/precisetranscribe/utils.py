@@ -27,11 +27,6 @@ def temporary_file(suffix: Optional[str]):
     finally:
         if os.path.exists(temp_file):
             os.remove(temp_file)
-        
-def split_filepath(filepath: str) -> Tuple[str, str]:
-    filename, extension = os.path.splitext(filepath)
-    print(f"Filename: {filename}, Extension: {extension}")
-    return filename, extension  
 
 def convert_to_wav(input_file):
     with temporary_file() as temp_input, temporary_file('.wav') as temp_output:
@@ -86,9 +81,8 @@ def load_whisper_output(filepath):
         whisper_output = json.load(f)
     return whisper_output
 
-def save_final_output(combined_processed_chunks, filename):
+def save_processed_transcript(combined_processed_chunks, filename) -> None:
     """
-    
     """
     with open(f'{filename}_final_output.json', 'w') as json_file:
         json.dump(combined_processed_chunks, json_file)
@@ -136,15 +130,25 @@ def chunk_transcript_to_token_limit(transcript_segments, token_limit=1200):
                     
     return chunks, len(chunks)
         
-def load_system_prompt():
-    system_prompt = """
+def generate_system_prompt(speakers=None):
+    
+    if speakers == None:
+        speaker_prompt = "at least one respondent"
+    elif speakers == 1:
+        speaker_prompt = "one respondent"
+    else:
+        speaker_prompt = f"{speakers} respondents"
+        
+    system_prompt = f"""
     You are a helpful assistant whose job it is to label a transcript according to who is speaking.
-    You will see a transcript from a conversation between an interviewer and at least one respondent.
+    You will see a transcript from a conversation between an interviewer and {speaker_prompt}.
     Reorganise and label the transcript so it is clear who is speaking. Guess the name of the respondent from the context where possible.
     Remove filler words and phrases without changing the meaning of the transcript.
     Only add necessary punctuation such as periods, commas, and capitalization, and use only the context provided.
     Return your response as a JSON.
-
+    """
+    
+    examples = """
     Example 1:
 
     Hi there, how are you, you know, doing today Emily? I'm um fine, thank you. Great. I'm going to show you some you know marketing materials. Is that okay? I mean, yes. No problem.
@@ -183,10 +187,13 @@ def load_system_prompt():
         }
     }
     """
+    
+    system_prompt = system_prompt + examples
+    
     return system_prompt
 
-def process_transcription(chunks):
-    system_prompt = load_system_prompt()
+def process_transcription(chunks, speakers=None):
+    system_prompt = generate_system_prompt(speakers)
     processed_chunks = []
     
     prompt = system_prompt
