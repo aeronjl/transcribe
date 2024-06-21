@@ -3,14 +3,13 @@ import os
 
 from . import utils, whisper
 
-def transcribe_audio(wav_data, filename='transcription', save=True):
+def transcribe_audio(wav_data):
     """
     Transcribes audio data from a WAV file in segmented chunks, processes each segment,
     and saves the results as JSON files.
 
     Args:
     - wav_data (bytes): Audio data in WAV format.
-    - filename (str, optional): Base filename for output JSON files (default: 'transcription').
     - save (bool, optional): Whether to save output JSON files (default: True).
 
     Returns:
@@ -25,7 +24,7 @@ def transcribe_audio(wav_data, filename='transcription', save=True):
 
     Example usage:
     >>> audio_data = load_wav_file('audio.wav')
-    >>> transcriptions, processed_chunks = transcribe_audio(audio_data, filename='my_transcription')
+    >>> transcriptions, processed_chunks = transcribe_audio(audio_data)
     """
     
     # Segment the audio file into smaller chunks for transcribing
@@ -58,11 +57,6 @@ def transcribe_audio(wav_data, filename='transcription', save=True):
     for index, segment in enumerate(combined_transcript_segments):
         combined_transcript_segments[index]['start'] = utils.convert_to_timestamp(segment['start'])
         combined_transcript_segments[index]['end'] = utils.convert_to_timestamp(segment['end'])  
-        
-    if save:
-        # Save the transcribed audio segments to a JSON file
-        with open(f'{filename}_whisper_output.json', 'w') as json_file:
-            json.dump(combined_transcript_segments, json_file)
     
     # Chunk the transcript segments to a token limit
     chunks, n_transcript_chunks = utils.chunk_transcript_to_token_limit(combined_transcript_segments, token_limit=1200)    
@@ -72,10 +66,5 @@ def transcribe_audio(wav_data, filename='transcription', save=True):
     # Process the transcription chunks with GPT-4o
     print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")  
     combined_processed_chunks = utils.process_transcription(chunks)
-    
-    # Save the processed output to a JSON file
-    if save:
-        with open(f'{filename}_final_output.json', 'w') as json_file:
-            json.dump(combined_processed_chunks, json_file)
 
     return combined_transcript_segments, combined_processed_chunks
