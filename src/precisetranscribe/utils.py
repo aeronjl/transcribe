@@ -10,7 +10,7 @@ from pydub import AudioSegment
 import tiktoken
 from . import whisper, gpt
 from .openai import OpenAIClient
-from typing import Tuple
+from typing import Tuple, Optional
 from contextlib import contextmanager
 import uuid
 import tempfile
@@ -18,7 +18,7 @@ import tempfile
 encoding = tiktoken.get_encoding("cl100k_base")
 
 @contextmanager
-def temporary_file(suffix=None):
+def temporary_file(suffix: Optional[str]):
     """Context manager for creating temporary files."""
     temp_dir = tempfile.gettempdir()
     temp_file = os.path.join(temp_dir, f"{uuid.uuid4()}{suffix or ''}")
