@@ -128,15 +128,19 @@ def transcribe_audio(wav_data):
 
     # Renumber and adjust timings
     current_id = 0
-    current_time = 0
-    for segment in transcribed_audio_segments:
+    time_offset = 0
+    for i, segment in enumerate(transcribed_audio_segments):
         segment['id'] = current_id
         current_id += 1
         
-        segment['start'] += current_time
-        segment['end'] += current_time
-        current_time = segment['end']
+        segment['start'] += time_offset
+        segment['end'] += time_offset
         
+        # If this is the last segment in an audio chunk, update the time offset
+        if i + 1 == len(transcribed_audio_segments) or transcribed_audio_segments[i + 1]['start'] < segment['end']:
+            time_offset = segment['end']
+        
+        # Convert timestamps to HH:MM:SS format
         segment['start'] = utils.convert_to_timestamp(segment['start'])
         segment['end'] = utils.convert_to_timestamp(segment['end'])
     

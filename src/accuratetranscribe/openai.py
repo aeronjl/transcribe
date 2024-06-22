@@ -1,7 +1,8 @@
 """This module stores the OpenAI client instance. It is a singleton class that ensures only one instance of the OpenAI client is created."""
-import openai
 import os
+
 from dotenv import load_dotenv
+import openai
 
 class OpenAIClient:
     _instance = None
