@@ -129,7 +129,7 @@ def chunk_transcript_to_token_limit(transcript_segments, token_limit=1200):
                 text_buffer = ''
                     
     return chunks, len(chunks)
-        
+
 def generate_system_prompt(speakers=None):
     
     if speakers == None:
