@@ -20,10 +20,13 @@ def generate_system_prompt(speakers: Optional[int] = None) -> str:
     Reorganise and label the transcript so it is clear who is speaking. Guess the name of the respondent from the context where possible.
     Remove filler words and phrases without changing the meaning of the transcript.
     Only add necessary punctuation such as periods, commas, and capitalization, and use only the context provided.
-    Return your response as a JSON.
+    You must return your response as a properly formatted JSON.
     """
     
     examples = """
+    \n
+    --- Examples ---
+    
     Example 1:
 
     Hi there, how are you, you know, doing today Emily? I'm um fine, thank you. Great. I'm going to show you some you know marketing materials. Is that okay? I mean, yes. No problem.
