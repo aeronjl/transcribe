@@ -58,11 +58,6 @@ def remove_excessive_repetitions(text, max_repetitions=3):
         last_word = word
     return ' '.join(result)
 
-def truncate_content(content, max_length=500):
-    if len(content) > max_length:
-        return content[:max_length] + "..."
-    return content
-
 def clean_and_parse_json(raw_json):
     # Remove any trailing commas in the JSON string
     cleaned_json = re.sub(r',\s*}', '}', raw_json)
@@ -76,7 +71,6 @@ def clean_and_parse_json(raw_json):
         for key, value in parsed_json.items():
             if isinstance(value, dict) and 'Content' in value:
                 value['Content'] = remove_excessive_repetitions(value['Content'])
-                value['Content'] = truncate_content(value['Content'])
         
         return parsed_json
     except json.JSONDecodeError as e:
