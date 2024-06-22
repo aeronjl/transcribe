@@ -1,3 +1,5 @@
+import datetime
+from difflib import SequenceMatcher
 import re
 import json
 from typing import List, Dict, Any, Tuple
@@ -113,9 +115,75 @@ def process_whisper_transcription(transcribed_audio_segments, speakers=None):
             processed_chunks[str(i)] = value
         
         previous_chunk = processed_chunk
-        
+    
     return processed_chunks
 
+def similarity(a, b):
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+def time_to_seconds(time_str):
+    t = datetime.datetime.strptime(time_str, "%H:%M:%S")
+    return t.hour * 3600 + t.minute * 60 + t.second
+
+def align_timestamps(processed_transcript, whisper_transcript):
+    aligned_transcript = {}
+    whisper_entries = sorted([entry for entry in whisper_transcript if entry['text'].strip()], key=lambda x: x['start'])
+    
+    last_matched_index = -1
+    last_end_time = "00:00:00"
+
+    for key, item in processed_transcript.items():
+        content = item['Content']
+        
+        # Consider only entries after the last matched one
+        candidate_entries = whisper_entries[last_matched_index + 1:]
+        
+        # Find the best match among candidates
+        best_match = max(candidate_entries, key=lambda x: similarity(content, x['text']))
+        best_match_index = whisper_entries.index(best_match)
+        
+        # Check if the match makes sense time-wise (within 5 minutes of the last end time)
+        if time_to_seconds(best_match['start']) - time_to_seconds(last_end_time) > 300:
+            # If not, find the closest match in time
+            best_match = min(candidate_entries, key=lambda x: abs(time_to_seconds(x['start']) - time_to_seconds(last_end_time)))
+            best_match_index = whisper_entries.index(best_match)
+        
+        start_time = best_match['start']
+        
+        # Find the end time by looking at the next entry's start time
+        if best_match_index + 1 < len(whisper_entries):
+            end_time = whisper_entries[best_match_index + 1]['start']
+        else:
+            end_time = best_match['end']
+        
+        aligned_transcript[key] = {
+            'Speaker': item['Speaker'],
+            'Content': content,
+            'Start': start_time,
+            'End': end_time
+        }
+        
+        last_matched_index = best_match_index
+        last_end_time = end_time
+    
+    return aligned_transcript
+
+def format_entry(entry):
+    speaker = entry['Speaker']
+    start = entry['Start']
+    end = entry['End']
+    content = entry['Content']
+    
+    formatted = f"{speaker}\n{start} - {end}\n\n{content}\n\n"
+    return formatted
+
+def export_transcript(transcript, filename='transcript'):
+    with open(f'data/transcripts/{filename}.txt', 'w') as f:
+        for key in sorted(transcript.keys(), key=int):  # Sort keys numerically
+            entry = transcript[key]
+            formatted_entry = format_entry(entry)
+            f.write(formatted_entry)
+            
 # Main execution
 if __name__ == "__main__":
     pass
