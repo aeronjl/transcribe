@@ -30,8 +30,11 @@ def temporary_file(suffix: Optional[str] = None):
         os.unlink(temp_file.name)
 
 def convert_to_wav(input_file):
+    print(f"Input file size: {input_file.tell()} bytes")
     print(f"Input file type: {type(input_file)}")
     print(f"Input file mode: {input_file.mode}")
+    
+    input_file.seek(0)
     
     with temporary_file() as temp_input, temporary_file('.wav') as temp_output:
         print(f"Temporary input file: {temp_input}")
@@ -40,19 +43,37 @@ def convert_to_wav(input_file):
         # Write the input file to a temporary file
         try:
             with open(temp_input, 'wb') as f:
-                f.write(input_file.read())
+                input_data = input_file.read()
+                f.write(input_data)
+                print(f"Wrote {len(input_data)} bytes to temporary input file")
         except Exception as e:
             print(f"Error writing to temporary input file: {str(e)}")
             return None
             
         try:
+            # Get the duration of the input file
+            probe = ffmpeg.probe(temp_input)
+            duration = float(probe['streams'][0]['duration'])
+            print(f"Input file duration: {duration} seconds")
+            
             stream = ffmpeg.input(temp_input)
             stream = ffmpeg.output(stream, temp_output, acodec='pcm_s16le', ac=1, ar='16k')
             ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
             
             # Read the output file
             with open(temp_output, 'rb') as f:
-                return f.read()
+                wav_data = f.read()
+                print(f"Converted WAV size: {len(wav_data)} bytes")
+            
+            # Get the duration of the output file
+            probe = ffmpeg.probe(temp_output)
+            out_duration = float(probe['streams'][0]['duration'])
+            print(f"Output file duration: {out_duration} seconds")
+            
+            if abs(duration - out_duration) > 0.1:
+                print(f"Warning: Input and output durations differ by {abs(duration - out_duration)} seconds")
+                
+            return wav_data
         except ffmpeg.Error as e:
             print('stdout:', e.stdout.decode('utf8'))
             print('stderr:', e.stderr.decode('utf8'))
