@@ -1,5 +1,7 @@
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
+from concurrent.futures import ThreadPoolExecutor
+
 from . import utils, whisper, gpt
 
 def transcribe_audio_segment(audio_segment):
@@ -47,7 +49,48 @@ def transcribe_audio(wav_data):
         print(f"Last transcribed segment: {transcribed_audio_segments[-1]['text'][-50:]}")
     
     return transcribed_audio_segments
+
+def remove_excessive_repetitions(text, max_repetitions=3):
+    words = text.split()
+    result = []
+    repeat_count = 0
+    last_word = None
+    for word in words:
+        if word == last_word:
+            repeat_count += 1
+            if repeat_count <= max_repetitions:
+                result.append(word)
+        else:
+            repeat_count = 1
+            result.append(word)
+        last_word = word
+    return ' '.join(result)
+
+def truncate_content(content, max_length=500):
+    if len(content) > max_length:
+        return content[:max_length] + "..."
+    return content
+
+def clean_and_parse_json(raw_json):
+    # Remove any trailing commas in the JSON string
+    cleaned_json = re.sub(r',\s*}', '}', raw_json)
+    cleaned_json = re.sub(r',\s*]', ']', cleaned_json)
     
+    # Parse the JSON
+    try:
+        parsed_json = json.loads(cleaned_json)
+        
+        # Clean up each content field
+        for key, value in parsed_json.items():
+            if isinstance(value, dict) and 'Content' in value:
+                value['Content'] = remove_excessive_repetitions(value['Content'])
+                value['Content'] = truncate_content(value['Content'])
+        
+        return parsed_json
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON: {e}")
+        return None
+
 def process_chunk(chunk, system_prompt, previous_chunk=None):
     prompt = system_prompt
     if previous_chunk:
@@ -57,44 +100,27 @@ def process_chunk(chunk, system_prompt, previous_chunk=None):
     
     completion = gpt.process_transcription(chunk, prompt)
     
-    try:
-        return json.loads(completion.choices[0].message.content)
-    except json.JSONDecodeError as e:
-        print("Error decoding JSON from GPT response:")
-        print(f"Error message: {str(e)}")
-        print("GPT response content:")
-        print(completion.choices[0].message.content)
-        print("\nAttempting to fix JSON...")
-        
-        # Attempt to fix common JSON issues
-        fixed_content = completion.choices[0].message.content
-        fixed_content = fixed_content.replace("'", '"')  # Replace single quotes with double quotes
-        fixed_content = fixed_content.strip()  # Remove leading/trailing whitespace
-        if not fixed_content.startswith('{'): 
-            fixed_content = '{' + fixed_content
-        if not fixed_content.endswith('}'):
-            fixed_content += '}'
-        
-        try:
-            return json.loads(fixed_content)
-        except json.JSONDecodeError:
-            print("Failed to fix JSON. Returning raw content.")
-            return {"error": "JSON parsing failed", "raw_content": completion.choices[0].message.content}
+    # Clean and parse the JSON output
+    cleaned_json = clean_and_parse_json(completion.choices[0].message.content)
+    
+    if cleaned_json:
+        return cleaned_json
+    else:
+        # If parsing fails, return a simplified error response
+        return {"error": "JSON parsing failed", "raw_content": completion.choices[0].message.content[:1000]}  # Truncate raw content to 1000 characters
 
 
 def process_whisper_transcription(transcribed_audio_segments, speakers=None):
-    # Rearrange the transcript segments into chunks which fit the token limit
     chunks, n_transcript_chunks = utils.chunk_transcript_to_token_limit(transcribed_audio_segments, token_limit=1200)    
     print(f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds.")
         
-    system_prompt = utils.generate_system_prompt(speakers)
+    system_prompt = gpt.generate_system_prompt(speakers)
     
-    processed_chunks = []
+    processed_chunks = {}
     previous_chunk = None
     for chunk in chunks:
         processed_chunk = process_chunk(chunk, system_prompt, previous_chunk)
-        processed_chunks.append(processed_chunk)
+        processed_chunks.update(processed_chunk)  # Merge the new chunk into the accumulated dictionary
         previous_chunk = processed_chunk
         
-    processed_transcript = {key: value for d in processed_chunks for key, value in d.items()}
-    return processed_transcript
+    return processed_chunks
