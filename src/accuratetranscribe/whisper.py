@@ -14,8 +14,6 @@ def transcribe_audio_segment(audio_segment):
         file=buffer,
         language="en",
         response_format="verbose_json",
-        temperature=0,
-        prompt="The audio provided may have moments of silence, do not make up words to fill in extended times of silence."
-        
+        temperature=0.1,
     )    
     return transcription.segments
