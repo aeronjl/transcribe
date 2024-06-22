@@ -56,7 +56,31 @@ def process_chunk(chunk, system_prompt, previous_chunk=None):
         prompt += "\n".join(f'"{k} : {json.dumps(v)},' for k, v in chunk_items)
     
     completion = gpt.process_transcription(chunk, prompt)
-    return json.loads(completion.choices[0].message.content)
+    
+    try:
+        return json.loads(completion.choices[0].message.content)
+    except json.JSONDecodeError as e:
+        print("Error decoding JSON from GPT response:")
+        print(f"Error message: {str(e)}")
+        print("GPT response content:")
+        print(completion.choices[0].message.content)
+        print("\nAttempting to fix JSON...")
+        
+        # Attempt to fix common JSON issues
+        fixed_content = completion.choices[0].message.content
+        fixed_content = fixed_content.replace("'", '"')  # Replace single quotes with double quotes
+        fixed_content = fixed_content.strip()  # Remove leading/trailing whitespace
+        if not fixed_content.startswith('{'): 
+            fixed_content = '{' + fixed_content
+        if not fixed_content.endswith('}'):
+            fixed_content += '}'
+        
+        try:
+            return json.loads(fixed_content)
+        except json.JSONDecodeError:
+            print("Failed to fix JSON. Returning raw content.")
+            return {"error": "JSON parsing failed", "raw_content": completion.choices[0].message.content}
+
 
 def process_whisper_transcription(transcribed_audio_segments, speakers=None):
     # Rearrange the transcript segments into chunks which fit the token limit
