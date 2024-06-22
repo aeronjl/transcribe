@@ -2,61 +2,52 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from . import utils, whisper, gpt
 
-def transcribe_audio_segment(audio_segment, start_id=0, start_time=0) -> list:
-    transcribed_segment = whisper.transcribe_audio_segment(audio_segment)
-    if not transcribed_segment:
-        return []
-    if start_id > 0 or start_time > 0:
-        transcribed_segment = utils.renumber_transcribed_audio_segment(
-            transcribed_segment,
-            number_to_start_from=start_id,
-            time_to_start_from=start_time
-        )
-    return transcribed_segment
+def transcribe_audio_segment(audio_segment):
+    return whisper.transcribe_audio_segment(audio_segment)
 
 def transcribe_audio(wav_data):
     audio_segments = utils.segment_audio(wav_data, 100000)
     n_segments = len(audio_segments)
     print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
-    print(f"Total audio duration: {sum(len(segment) for segment in audio_segments)} seconds")
-    
+    print(f"Total audio duration: {sum(len(segment) for segment in audio_segments) / 1000} seconds")
+
     with ThreadPoolExecutor() as executor:
         futures = []
-        start_id = 0
-        start_time = 0
         for i, segment in enumerate(audio_segments):
             print(f"Submitting segment {i+1}/{n_segments} for transcription (duration: {len(segment)/1000} seconds)")
-            future = executor.submit(transcribe_audio_segment, segment, start_id, start_time)
+            future = executor.submit(transcribe_audio_segment, segment)
             futures.append(future)
-        
+
         transcribed_audio_segments = []
-        for i, future in enumerate(as_completed(futures)):
+        for i, future in enumerate(futures):
             result = future.result()
-            print(f"Completed transcription of segment {i+1}/{n_segments}")
             if result:
-                print(f"Segment {i+1} transcription: {result[0]['text'][:50]}...")
+                transcribed_audio_segments.extend(result)
+                print(f"Completed transcription of segment {i+1}. First text: {result[0]['text'][:50]}...")
             else:
                 print(f"Warning: Segment {i+1} returned no transcription")
-            transcribed_audio_segments.append(result)
-            if result: # Check if result is not empty
-                start_id += len(result)
-                start_time += result[-1]['end'] if result else 0
-        
-        transcribed_audio_segments = [future.result() for future in as_completed(futures)]
-        
-    combined_transcript_segments = [item for sublist in transcribed_audio_segments for item in sublist]
 
-    for segment in combined_transcript_segments:
+    # Renumber and adjust timings
+    current_id = 0
+    current_time = 0
+    for segment in transcribed_audio_segments:
+        segment['id'] = current_id
+        current_id += 1
+        
+        segment['start'] += current_time
+        segment['end'] += current_time
+        current_time = segment['end']
+        
         segment['start'] = utils.convert_to_timestamp(segment['start'])
-        segment['end'] = utils.convert_to_timestamp(segment['end'])  
+        segment['end'] = utils.convert_to_timestamp(segment['end'])
     
-    print(f"Total transcribed segments: {len(combined_transcript_segments)}")
-    if combined_transcript_segments:
-        print(f"First transcribed segment: {combined_transcript_segments[0]['text'][:50]}...")
-        print(f"Last transcribed segment: {combined_transcript_segments[-1]['text'][-50:]}")
-    return combined_transcript_segments
+    print(f"Total transcribed segments: {len(transcribed_audio_segments)}")
+    if transcribed_audio_segments:
+        print(f"First transcribed segment: {transcribed_audio_segments[0]['text'][:50]}...")
+        print(f"Last transcribed segment: {transcribed_audio_segments[-1]['text'][-50:]}")
     
-
+    return transcribed_audio_segments
+    
 def process_chunk(chunk, system_prompt, previous_chunk=None):
     prompt = system_prompt
     if previous_chunk:
