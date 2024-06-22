@@ -18,18 +18,25 @@ def transcribe_audio(wav_data):
     audio_segments = utils.segment_audio(wav_data, 100000)
     n_segments = len(audio_segments)
     print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
+    print(f"Total audio duration: {sum(len(segment) for segment in audio_segments)} seconds")
     
     with ThreadPoolExecutor() as executor:
         futures = []
         start_id = 0
         start_time = 0
-        for segment in audio_segments:
+        for i, segment in enumerate(audio_segments):
+            print(f"Submitting segment {i+1}/{n_segments} for transcription (duration: {len(segment)/1000} seconds)")
             future = executor.submit(transcribe_audio_segment, segment, start_id, start_time)
             futures.append(future)
         
         transcribed_audio_segments = []
-        for future in as_completed(futures):
+        for i, future in enumerate(as_completed(futures)):
             result = future.result()
+            print(f"Completed transcription of segment {i+1}/{n_segments}")
+            if result:
+                print(f"Segment {i+1} transcription: {result[0]['text'][:50]}...")
+            else:
+                print(f"Warning: Segment {i+1} returned no transcription")
             transcribed_audio_segments.append(result)
             if result: # Check if result is not empty
                 start_id += len(result)
@@ -43,6 +50,10 @@ def transcribe_audio(wav_data):
         segment['start'] = utils.convert_to_timestamp(segment['start'])
         segment['end'] = utils.convert_to_timestamp(segment['end'])  
     
+    print(f"Total transcribed segments: {len(combined_transcript_segments)}")
+    if combined_transcript_segments:
+        print(f"First transcribed segment: {combined_transcript_segments[0]['text'][:50]}...")
+        print(f"Last transcribed segment: {combined_transcript_segments[-1]['text'][-50:]}")
     return combined_transcript_segments
     
 

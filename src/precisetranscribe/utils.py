@@ -30,11 +30,12 @@ def temporary_file(suffix: Optional[str] = None):
         os.unlink(temp_file.name)
 
 def convert_to_wav(input_file):
+    input_file.seek(0, 2)
+    file_size = input_file.tell()
+    input_file.seek(0)
     print(f"Input file size: {input_file.tell()} bytes")
     print(f"Input file type: {type(input_file)}")
     print(f"Input file mode: {input_file.mode}")
-    
-    input_file.seek(0)
     
     with temporary_file() as temp_input, temporary_file('.wav') as temp_output:
         print(f"Temporary input file: {temp_input}")
