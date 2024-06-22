@@ -4,7 +4,7 @@ import datetime
 import json
 import os
 from io import BytesIO
-from typing import Tuple, Optional
+from typing import Optional, List, Dict, Any, Generator, BinaryIO, Union, Tuple
 from contextlib import contextmanager
 import uuid
 import tempfile
@@ -17,10 +17,11 @@ import tiktoken
 from . import whisper, gpt
 from .openai import OpenAIClient
 
-encoding = tiktoken.get_encoding("cl100k_base")
+# Constants
+ENCODING = tiktoken.get_encoding("cl100k_base")
 
 @contextmanager
-def temporary_file(suffix: Optional[str] = None):
+def temporary_file(suffix: Optional[str] = None) -> Generator[str, None, None]:
     """Context manager for creating temporary files."""
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:
@@ -29,7 +30,7 @@ def temporary_file(suffix: Optional[str] = None):
     finally:
         os.unlink(temp_file.name)
 
-def convert_to_wav(input_file):
+def convert_to_wav(input_file: BinaryIO) -> Optional[bytes]:
     input_file.seek(0, 2)
     file_size = input_file.tell()
     input_file.seek(0)
@@ -82,7 +83,7 @@ def convert_to_wav(input_file):
             print(f'An unexpected error occurred: {str(e)}')
         return None
     
-def segment_audio(wav_data, segment_duration: int) -> list[AudioSegment]:
+def segment_audio(wav_data: bytes, segment_duration: int) -> List[AudioSegment]:
     """
     Segments an audio file into smaller chunks.
     """
@@ -103,7 +104,7 @@ def segment_audio(wav_data, segment_duration: int) -> list[AudioSegment]:
     
     return audio_segments
 
-def save_whisper_output(combined_transcript_segments, filename):
+def save_whisper_output(combined_transcript_segments: List[Dict[str, Any]], filename: str) -> None:
     """
     
     """
@@ -111,40 +112,65 @@ def save_whisper_output(combined_transcript_segments, filename):
         json.dump(combined_transcript_segments, json_file, indent=4)
     return None
 
-def load_whisper_output(filepath):
+def load_whisper_output(filepath: str) -> List[Dict[str, Any]]:
     with open(f"{filepath}_whisper_output.json", "r") as f:
         whisper_output = json.load(f)
     return whisper_output
 
-def save_processed_transcript(combined_processed_chunks, filename) -> None:
+def save_processed_transcript(combined_processed_chunks: List[Dict[str, Any]], filename: str) -> None:
     """
     """
     with open(f'{filename}_final_output.json', 'w') as json_file:
         json.dump(combined_processed_chunks, json_file, indent=4)
     return None
 
-def convert_to_timestamp(seconds):
+def convert_to_timestamp(seconds: Union[int, float]) -> str:
     td = datetime.timedelta(seconds=seconds)
     hours, remainder = divmod(td.total_seconds(), 3600)
     minutes,seconds = divmod(remainder, 60)
     timestamp = "{:02}:{:02}:{:02}".format(int(hours), int(minutes), int(seconds))
     return timestamp
 
-def buffer_audio(audio):
+def buffer_audio(audio: AudioSegment) -> BytesIO:
     buffer = BytesIO()
     buffer.name = "buffer.wav"
     audio.export(buffer, format="wav")
     buffer.seek(0)
     return buffer
 
-def renumber_transcribed_audio_segment(transcribed_audio_segment, number_to_start_from=0, time_to_start_from=0):
+def prepare_audio(filename: str) -> Optional[bytes]:   
+    if not os.path.exists(filename):
+        print(f"Error: File '{filename}' does not exist.")
+    else:
+        print(f"File '{filename}' found.")
+
+        try:
+            with open(filename, "rb") as input_file:
+                wav_data = convert_to_wav(input_file)
+            
+            if wav_data is None:
+                print("Error: convert_to_wav returned None.")
+            else:
+                print(f"Successfully converted file. WAV data length: {len(wav_data)} bytes")
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
+    return wav_data
+
+def renumber_transcribed_audio_segment(
+    transcribed_audio_segment: List[Dict[str, Any]],
+    number_to_start_from: int = 0,
+    time_to_start_from: float = 0
+) -> List[Dict[str, Any]]:
     for phrase_index, phrase in enumerate(transcribed_audio_segment):
         phrase['id'] = number_to_start_from + phrase_index + 1
         phrase['start'] = phrase['start'] + time_to_start_from
         phrase['end'] = phrase['end'] + time_to_start_from
     return transcribed_audio_segment
 
-def chunk_transcript_to_token_limit(transcript_segments, token_limit=1200):
+def chunk_transcript_to_token_limit(
+    transcript_segments: List[Dict[str, Any]],
+    token_limit: int = 1200
+) -> Tuple[List[str], int]:
     text_buffer = ''
     chunks = []
     for index, segment in enumerate(transcript_segments):    
@@ -163,8 +189,7 @@ def chunk_transcript_to_token_limit(transcript_segments, token_limit=1200):
                     
     return chunks, len(chunks)
 
-def generate_system_prompt(speakers=None):
-    
+def generate_system_prompt(speakers: Optional[int] = None) -> str:
     if speakers == None:
         speaker_prompt = "at least one respondent"
     elif speakers == 1:
