@@ -108,8 +108,7 @@ def transcribe_audio_segment(audio_segment):
 def transcribe_audio(wav_data):
     audio_segments = segment_audio(wav_data, 100000)
     n_segments = len(audio_segments)
-    print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
-    print(f"Total audio duration: {sum(len(segment) for segment in audio_segments) / 1000} seconds")
+    print(f"Transcribing {n_segments} audio segments. Total audio duration: {sum(len(segment) for segment in audio_segments) / 1000} seconds")
 
     with ThreadPoolExecutor() as executor:
         futures = []
