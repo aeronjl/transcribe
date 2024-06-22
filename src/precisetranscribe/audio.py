@@ -1,12 +1,13 @@
 import os
 from io import BytesIO
 from typing import BinaryIO, List, Optional
+from concurrent.futures import ThreadPoolExecutor
 
 import ffmpeg
 import numpy as np
 from pydub import AudioSegment
 
-from . import utils
+from . import utils, whisper
 
 def convert_to_wav(input_file: BinaryIO) -> Optional[bytes]:
     """Convert input audio to WAV format."""
@@ -100,6 +101,52 @@ def segment_audio(wav_data: bytes, segment_duration: int) -> List[AudioSegment]:
         audio_segments.append(audio_to_segment[start_time:end_time])
     
     return audio_segments
+
+def transcribe_audio_segment(audio_segment):
+    return whisper.transcribe_audio_segment(audio_segment)
+
+def transcribe_audio(wav_data):
+    audio_segments = segment_audio(wav_data, 100000)
+    n_segments = len(audio_segments)
+    print(f"Transcribing {n_segments} audio segments. Estimated time: {n_segments * 10} seconds.")
+    print(f"Total audio duration: {sum(len(segment) for segment in audio_segments) / 1000} seconds")
+
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for i, segment in enumerate(audio_segments):
+            print(f"Submitting segment {i+1}/{n_segments} for transcription (duration: {len(segment)/1000} seconds)")
+            future = executor.submit(transcribe_audio_segment, segment)
+            futures.append(future)
+
+        transcribed_audio_segments = []
+        for i, future in enumerate(futures):
+            result = future.result()
+            if result:
+                transcribed_audio_segments.extend(result)
+                print(f"Completed transcription of segment {i+1}. First text: {result[0]['text'][:50]}...")
+            else:
+                print(f"Warning: Segment {i+1} returned no transcription")
+
+    # Renumber and adjust timings
+    current_id = 0
+    current_time = 0
+    for segment in transcribed_audio_segments:
+        segment['id'] = current_id
+        current_id += 1
+        
+        segment['start'] += current_time
+        segment['end'] += current_time
+        current_time = segment['end']
+        
+        segment['start'] = utils.convert_to_timestamp(segment['start'])
+        segment['end'] = utils.convert_to_timestamp(segment['end'])
+    
+    print(f"Total transcribed segments: {len(transcribed_audio_segments)}")
+    if transcribed_audio_segments:
+        print(f"First transcribed segment: {transcribed_audio_segments[0]['text'][:50]}...")
+        print(f"Last transcribed segment: {transcribed_audio_segments[-1]['text'][-50:]}")
+    
+    return transcribed_audio_segments
 
 # Main execution
 if __name__ == "__main__":
