@@ -1,38 +1,49 @@
 """This module provides utilities for transcription."""
 
 import datetime
-import ffmpeg
-import numpy as np
 import json
 import os
 from io import BytesIO
-from pydub import AudioSegment
-import tiktoken
-from . import whisper, gpt
-from .openai import OpenAIClient
 from typing import Tuple, Optional
 from contextlib import contextmanager
 import uuid
 import tempfile
 
+import ffmpeg
+import numpy as np
+from pydub import AudioSegment
+import tiktoken
+
+from . import whisper, gpt
+from .openai import OpenAIClient
+
 encoding = tiktoken.get_encoding("cl100k_base")
 
 @contextmanager
-def temporary_file(suffix: Optional[str]):
+def temporary_file(suffix: Optional[str] = None):
     """Context manager for creating temporary files."""
-    temp_dir = tempfile.gettempdir()
-    temp_file = os.path.join(temp_dir, f"{uuid.uuid4()}{suffix or ''}")
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:
-        yield
+        temp_file.close()
+        yield temp_file.name
     finally:
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        os.unlink(temp_file.name)
 
 def convert_to_wav(input_file):
+    print(f"Input file type: {type(input_file)}")
+    print(f"Input file mode: {input_file.mode}")
+    
     with temporary_file() as temp_input, temporary_file('.wav') as temp_output:
+        print(f"Temporary input file: {temp_input}")
+        print(f"Temporary output file: {temp_output}")
+        
         # Write the input file to a temporary file
-        with open(temp_input, 'wb') as f:
-            f.write(input_file.getvalue())
+        try:
+            with open(temp_input, 'wb') as f:
+                f.write(input_file.read())
+        except Exception as e:
+            print(f"Error writing to temporary input file: {str(e)}")
+            return None
             
         try:
             stream = ffmpeg.input(temp_input)
@@ -45,7 +56,9 @@ def convert_to_wav(input_file):
         except ffmpeg.Error as e:
             print('stdout:', e.stdout.decode('utf8'))
             print('stderr:', e.stderr.decode('utf8'))
-            return None
+        except Exception as e:
+            print(f'An unexpected error occurred: {str(e)}')
+        return None
     
 def segment_audio(wav_data, segment_duration: int) -> list[AudioSegment]:
     """
@@ -73,7 +86,7 @@ def save_whisper_output(combined_transcript_segments, filename):
     
     """
     with open(f'{filename}_whisper_output.json', 'w') as json_file:
-        json.dump(combined_transcript_segments, json_file)
+        json.dump(combined_transcript_segments, json_file, indent=4)
     return None
 
 def load_whisper_output(filepath):
@@ -85,15 +98,13 @@ def save_processed_transcript(combined_processed_chunks, filename) -> None:
     """
     """
     with open(f'{filename}_final_output.json', 'w') as json_file:
-        json.dump(combined_processed_chunks, json_file)
+        json.dump(combined_processed_chunks, json_file, indent=4)
     return None
 
 def convert_to_timestamp(seconds):
     td = datetime.timedelta(seconds=seconds)
-
     hours, remainder = divmod(td.total_seconds(), 3600)
     minutes,seconds = divmod(remainder, 60)
-
     timestamp = "{:02}:{:02}:{:02}".format(int(hours), int(minutes), int(seconds))
     return timestamp
 

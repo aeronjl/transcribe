@@ -2,8 +2,10 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from . import utils, whisper, gpt
 
-def transcribe_audio_segment(audio_segment, start_id=0, start_time=0):
+def transcribe_audio_segment(audio_segment, start_id=0, start_time=0) -> list:
     transcribed_segment = whisper.transcribe_audio_segment(audio_segment)
+    if not transcribed_segment:
+        return []
     if start_id > 0 or start_time > 0:
         transcribed_segment = utils.renumber_transcribed_audio_segment(
             transcribed_segment,
@@ -19,17 +21,25 @@ def transcribe_audio(wav_data):
     
     with ThreadPoolExecutor() as executor:
         futures = []
-        for i, segment in enumerate(audio_segments):
-            start_id = sum(len(transcribed_segment) for transcribed_segment in futures) if i > 0 else 0
-            start_time = sum(transcribed_segment[-1]['end'] for transcribed_segment in futures) if i > 0 else 0
+        start_id = 0
+        start_time = 0
+        for segment in audio_segments:
             future = executor.submit(transcribe_audio_segment, segment, start_id, start_time)
             futures.append(future)
-
+        
+        transcribed_audio_segments = []
+        for future in as_completed(futures):
+            result = future.result()
+            transcribed_audio_segments.append(result)
+            if result: # Check if result is not empty
+                start_id += len(result)
+                start_time += result[-1]['end'] if result else 0
+        
         transcribed_audio_segments = [future.result() for future in as_completed(futures)]
         
     combined_transcript_segments = [item for sublist in transcribed_audio_segments for item in sublist]
 
-    for segment in enumerate(combined_transcript_segments):
+    for segment in combined_transcript_segments:
         segment['start'] = utils.convert_to_timestamp(segment['start'])
         segment['end'] = utils.convert_to_timestamp(segment['end'])  
     
