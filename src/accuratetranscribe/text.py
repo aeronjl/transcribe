@@ -2,7 +2,7 @@ import datetime
 from difflib import SequenceMatcher
 import re
 import json
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Union
 
 import tiktoken
 
@@ -60,10 +60,28 @@ def remove_excessive_repetitions(text, max_repetitions=3):
         last_word = word
     return ' '.join(result)
 
-def clean_and_parse_json(raw_json):
+def extract_key_value_pairs(text: str) -> Dict[str, Dict[str, str]]:
+    pattern = r'"(\d+)":\s*{\s*"Speaker":\s*"([^"]+)",\s*"Content":\s*"([^"]+)"\s*}'
+    matches = re.findall(pattern, text)
+    return {match[0]: {"Speaker": match[1], "Content": match[2]} for match in matches}
+
+def clean_and_parse_json(raw_json: str) -> Union[Dict[str, Any], Dict[str, Union[str, Dict[str, Any]]]]:
     # Remove any trailing commas in the JSON string
     cleaned_json = re.sub(r',\s*}', '}', raw_json)
     cleaned_json = re.sub(r',\s*]', ']', cleaned_json)
+    
+    # Ensure all brackets and quotes are closed
+    open_curly = cleaned_json.count('{')
+    close_curly = cleaned_json.count('}')
+    open_square = cleaned_json.count('[')
+    close_square = cleaned_json.count(']')
+    
+    cleaned_json += '}' * (open_curly - close_curly)
+    cleaned_json += ']' * (open_square - close_square)
+    
+    # Ensure the JSON starts and ends with curly braces
+    if not cleaned_json.startswith('{'): cleaned_json = '{' + cleaned_json
+    if not cleaned_json.endswith('}'): cleaned_json += '}'
     
     # Parse the JSON
     try:
@@ -77,7 +95,23 @@ def clean_and_parse_json(raw_json):
         return parsed_json
     except json.JSONDecodeError as e:
         print(f"Error parsing JSON: {e}")
-        return None
+        
+        # Fallback: Try to extract valid key-value pairs
+        extracted_data = extract_key_value_pairs(cleaned_json)
+        
+        if extracted_data:
+            return {
+                "partial_parse": True,
+                "extracted_data": extracted_data,
+                "error": str(e),
+                "raw_content": cleaned_json[:1000]  # Truncate raw content to 1000 characters
+            }
+        else:
+            return {
+                "error": "JSON parsing failed",
+                "error_message": str(e),
+                "raw_content": cleaned_json[:1000]  # Truncate raw content to 1000 characters
+            }
 
 def process_chunk(chunk, system_prompt, previous_chunk=None):
     prompt = system_prompt
