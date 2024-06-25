@@ -12,7 +12,7 @@ from . import utils, whisper
 def convert_to_wav(input_file: BinaryIO) -> Optional[bytes]:
     """Convert input audio to WAV format."""
     input_file.seek(0, 2)
-    file_size = input_file.tell()
+    # file_size = input_file.tell()
     input_file.seek(0)
     print(f"Input file size: {input_file.tell()} bytes")
     print(f"Input file type: {type(input_file)}")
@@ -63,23 +63,36 @@ def convert_to_wav(input_file: BinaryIO) -> Optional[bytes]:
             print(f'An unexpected error occurred: {str(e)}')
         return None
 
-def prepare_audio(filename: str) -> Optional[bytes]:   
-    if not os.path.exists(filename):
-        print(f"Error: File '{filename}' does not exist.")
-    else:
-        print(f"File '{filename}' found.")
+def prepare_audio(filename: str) -> Optional[bytes]:
+    """
+    Prepare an audio file for transcription by converting it to WAV format.
 
-        try:
-            with open(filename, "rb") as input_file:
-                wav_data = convert_to_wav(input_file)
-            
-            if wav_data is None:
-                print("Error: convert_to_wav returned None.")
-            else:
-                print(f"Successfully converted file. WAV data length: {len(wav_data)} bytes")
-        except Exception as e:
-            print(f"An error occurred: {str(e)}")
-    return wav_data
+    Args:
+        filename(str): The path to the audio file.
+
+    Returns:
+        bytes: The WAV data.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the file conversion fails.
+        Exception: For any other error.
+    """
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"Error: File '{filename}' does not exist.")
+    
+    try:
+        with open(filename, "rb") as input_file:
+            wav_data = convert_to_wav(input_file)
+
+        if wav_data is None:
+            raise ValueError("Error: convert_towav() returned None.")
+
+
+        print(f"Successfully converted file. WAV data length: {len(wav_data)} bytes")
+        return wav_data
+    except Exception as e:
+        raise Exception(f"Error preparing audio file: {str(e)}")
 
 def segment_audio(wav_data: bytes, segment_duration: int) -> List[AudioSegment]:
     """
