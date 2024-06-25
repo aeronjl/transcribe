@@ -2,7 +2,7 @@ import datetime
 from difflib import SequenceMatcher
 import re
 import json
-from typing import List, Dict, Any, Tuple, Union
+from typing import List, Dict, Any, Tuple, Union, Optional
 
 import tiktoken
 
@@ -113,23 +113,23 @@ def clean_and_parse_json(raw_json: str) -> Union[Dict[str, Any], Dict[str, Union
                 "raw_content": cleaned_json[:1000]  # Truncate raw content to 1000 characters
             }
 
-def process_chunk(chunk, system_prompt, previous_chunk=None):
+def process_chunk(chunk: Dict, system_prompt: str, previous_chunk:Optional[Dict] = None) -> Dict:
     prompt = system_prompt
     if previous_chunk:
         chunk_items = list(previous_chunk.items())
         prompt += "\n---\nYou are continuing on from a previous transcription which ended as follows:\n\n"
         prompt += "\n".join(f'"{k} : {json.dumps(v)},' for k, v in chunk_items)
     
-    completion = gpt.process_transcription(chunk, prompt)
+    completion: Dict = gpt.process_transcription(chunk, prompt)
     
     # Clean and parse the JSON output
-    cleaned_json = clean_and_parse_json(completion.choices[0].message.content)
+    cleaned_json: Optional[Dict] = clean_and_parse_json(completion.choices[0].message.content)
     
     if cleaned_json:
         return cleaned_json
     else:
         # If parsing fails, return a simplified error response
-        return {"error": "JSON parsing failed", "raw_content": completion.choices[0].message.content[:1000]}  # Truncate raw content to 1000 characters
+        return {"error": "JSON parsing failed", "raw_content": completion.choices[0].message.content[:1000]}
 
 def process_whisper_transcription(transcribed_audio_segments, speakers=None):
     chunks, n_transcript_chunks = chunk_transcript_to_token_limit(transcribed_audio_segments, token_limit=1200)    
