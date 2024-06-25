@@ -1,4 +1,5 @@
 import time
+import json
 from typing import Optional
 
 from .openai import OpenAIClient
@@ -24,7 +25,7 @@ def generate_system_prompt(speakers: Optional[int] = None) -> str:
     """
     
     examples = """
-    \n
+    \n\n
     --- Examples ---
     
     Example 1:
@@ -64,6 +65,8 @@ def generate_system_prompt(speakers: Optional[int] = None) -> str:
             "Content" : "I see. Thank you, Doctor. For our next exercise we're going to look at some headline statements. Take a look at these and tell me what you think."
         }
     }
+    
+    -- End of Examples --\n\n
     """
     
     system_prompt = system_prompt + examples
@@ -91,7 +94,7 @@ def process_transcription(chunk, system_prompt):
     elapsed = time.time() - t
     print(f"Processed transcription segment. Elapsed: {elapsed} seconds.")
 
-    return completion
+    return json.loads(completion)
 
 # Main execution
 if __name__ == "__main__":
