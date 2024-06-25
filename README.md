@@ -17,9 +17,21 @@ flowchart LR
     D-->C
     D-->E
 ```
+# Features
+- Transcribe long media files with Whisper faster using parallel processing.
+- Automatically label speakers in the transcription using GPT-4o.
+- Tidy up the transcription by removing filler words and false starts.
+- Generate timestamped transcripts in plaintext and JSON format.
 
 # Installation
 
 ```bash
 pip install precisetranscribe
+```
+
+Ensure `OPENAI_API_KEY` is set in your environment variables. Then simply run:
+
+```python
+import precisetranscribe as pt
+
 ```
