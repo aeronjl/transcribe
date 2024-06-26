@@ -128,7 +128,7 @@ def process_chunk(chunk: Dict, system_prompt: str, previous_chunk:Optional[Dict]
     if cleaned_json:
         return cleaned_json
     else:
-        # If parsing fails, return a simplified error response
+        print("Warning: JSON parsing failed in process_chunk")
         return {"error": "JSON parsing failed", "raw_content": completion.choices[0].message.content[:1000]}
 
 def process_whisper_transcription(transcribed_audio_segments, speakers=None):
@@ -159,47 +159,55 @@ def time_to_seconds(time_str):
     t = datetime.datetime.strptime(time_str, "%H:%M:%S")
     return t.hour * 3600 + t.minute * 60 + t.second
 
-def align_timestamps(processed_transcript, whisper_transcript):
+def align_timestamps(processed_transcript: Dict, whisper_transcript: List[Dict]) -> Dict:
+    if not isinstance(processed_transcript, dict) or not isinstance(whisper_transcript, list):
+        raise TypeError(f"Invalid input types: processed_transcript is {type(processed_transcript)}, whisper_transcript is {type(whisper_transcript)}")
+
+    print(f"Starting align_timestamps with {len(processed_transcript)} processed entries and {len(whisper_transcript)} whisper entries")
+
     aligned_transcript = {}
-    whisper_entries = sorted([entry for entry in whisper_transcript if entry['text'].strip()], key=lambda x: x['start'])
-    
-    last_matched_index = -1
-    last_end_time = "00:00:00"
+    current_whisper_index = 0
 
     for key, item in processed_transcript.items():
-        content = item['Content']
-        
-        # Consider only entries after the last matched one
-        candidate_entries = whisper_entries[last_matched_index + 1:]
-        
+        if not isinstance(item, dict):
+            print(f"Warning: Item for {key} is not a dictionary: {item}")
+            continue
+
+        content = item.get('Content') or item.get('content')
+        if not content:
+            print(f"Warning: 'Content' key not found for {key} in item {item}")
+            continue
+
+        speaker = item.get('Speaker') or item.get('speaker')
+        if content is None:
+            print(f"Warning: No 'Content' found for key {key}: {item}")
+            continue
+
         # Find the best match among candidates
-        best_match = max(candidate_entries, key=lambda x: similarity(content, x['text']))
-        best_match_index = whisper_entries.index(best_match)
+        best_match = None
+        best_similarity = -1
+        for i in range(current_whisper_index, len(whisper_transcript)):
+            whisper_entry = whisper_transcript[i]
+            current_similarity = similarity(content, whisper_entry.get('text', ''))
+            if current_similarity > best_similarity:
+                best_similarity = current_similarity
+                best_match = whisper_entry
+                current_whisper_index = i
         
-        # Check if the match makes sense time-wise (within 5 minutes of the last end time)
-        if time_to_seconds(best_match['start']) - time_to_seconds(last_end_time) > 300:
-            # If not, find the closest match in time
-            best_match = min(candidate_entries, key=lambda x: abs(time_to_seconds(x['start']) - time_to_seconds(last_end_time)))
-            best_match_index = whisper_entries.index(best_match)
-        
-        start_time = best_match['start']
-        
-        # Find the end time by looking at the next entry's start time
-        if best_match_index + 1 < len(whisper_entries):
-            end_time = whisper_entries[best_match_index + 1]['start']
-        else:
-            end_time = best_match['end']
+        if best_match is None:
+            print(f"Warning: No match found for key {key}")
+            continue
         
         aligned_transcript[key] = {
-            'Speaker': item['Speaker'],
+            'Speaker': speaker,
             'Content': content,
-            'Start': start_time,
-            'End': end_time
+            'Start': best_match['start'],
+            'End': best_match['end']
         }
-        
-        last_matched_index = best_match_index
-        last_end_time = end_time
-    
+
+        current_whisper_index += 1
+
+    print(f"Finished aligning {len(aligned_transcript)} entries.")
     return aligned_transcript
 
 def format_entry(entry):

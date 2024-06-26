@@ -14,6 +14,11 @@ def load_whisper_output(filepath: str) -> List[Dict[str, Any]]:
         whisper_output = json.load(f)
     return whisper_output
 
+def load_processed_transcript(filepath: str) -> List[Dict[str, Any]]:
+    with open(f"{filepath}_final_output.json", "r") as f:
+        processed_transcript = json.load(f)
+    return processed_transcript
+
 def save_processed_transcript(combined_processed_chunks: List[Dict[str, Any]], filepath: str) -> None:
     """
     """

@@ -63,7 +63,7 @@ def convert_to_wav(input_file: BinaryIO) -> Optional[bytes]:
             print(f'An unexpected error occurred: {str(e)}')
         return None
 
-def prepare_audio(filename: str) -> Optional[bytes]:
+def prepare_audio(filename: str) -> bytes:
     """
     Prepare an audio file for transcription by converting it to WAV format.
 
