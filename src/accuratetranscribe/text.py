@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Tuple, Union, Optional
 import tiktoken
 
 from . import gpt
+from .datastructures import WhisperOutput, Transcript
 
 # Constants
 ENCODING = tiktoken.get_encoding("cl100k_base")
@@ -152,9 +153,9 @@ def process_chunk(
         }
 
 
-def process_whisper_transcription(transcribed_audio_segments, speakers=None):
+def process_whisper_transcription(whisper_transcript: WhisperOutput, speakers=None):
     chunks, n_transcript_chunks = chunk_transcript_to_token_limit(
-        transcribed_audio_segments, token_limit=1200
+        whisper_transcript, token_limit=1200
     )
     print(
         f"Processing {n_transcript_chunks} transcript chunks. Estimated time: {n_transcript_chunks * 30} seconds."
@@ -162,20 +163,20 @@ def process_whisper_transcription(transcribed_audio_segments, speakers=None):
 
     system_prompt = gpt.generate_system_prompt(speakers)
 
-    processed_chunks = {}
+    transcript: Transcript = {}
     previous_chunk = None
     for chunk in chunks:
         processed_chunk = process_chunk(chunk, system_prompt, previous_chunk)
 
         # Merge the new chunk into the accumulated dictionary
         # Use the highest existing key + 1 as the starting point for new keys
-        start_key = max(map(int, processed_chunks.keys() or ["0"])) + 1
+        start_key = max(map(int, transcript.keys() or ["0"])) + 1
         for i, (key, value) in enumerate(processed_chunk.items(), start=start_key):
-            processed_chunks[str(i)] = value
+            transcript[str(i)] = value
 
         previous_chunk = processed_chunk
 
-    return processed_chunks
+    return transcript
 
 
 def similarity(a, b):
