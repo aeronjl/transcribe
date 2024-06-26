@@ -8,35 +8,36 @@ import numpy as np
 from pydub import AudioSegment
 
 from . import utils, whisper
+from .datastructures import WhisperOutput
 
 
 def convert_to_wav(input_file: BinaryIO) -> Optional[bytes]:
     """Convert input audio to WAV format."""
-    input_file.seek(0, 2)
-    # file_size = input_file.tell()
-    input_file.seek(0)
-    print(f"Input file size: {input_file.tell()} bytes")
-    print(f"Input file type: {type(input_file)}")
-    print(f"Input file mode: {input_file.mode}")
+    try:
+        input_file.seek(0, 2)
+        # file_size = input_file.tell()
+        input_file.seek(0)
+        print(f"Input file size: {input_file.tell()} bytes")
+        print(f"Input file type: {type(input_file)}")
+        print(f"Input file mode: {input_file.mode}")
 
-    with (
-        utils.temporary_file() as temp_input,
-        utils.temporary_file(".wav") as temp_output,
-    ):
-        print(f"Temporary input file: {temp_input}")
-        print(f"Temporary output file: {temp_output}")
+        with (
+            utils.temporary_file() as temp_input,
+            utils.temporary_file(".wav") as temp_output,
+        ):
+            print(f"Temporary input file: {temp_input}")
+            print(f"Temporary output file: {temp_output}")
 
-        # Write the input file to a temporary file
-        try:
-            with open(temp_input, "wb") as f:
-                input_data = input_file.read()
-                f.write(input_data)
-                print(f"Wrote {len(input_data)} bytes to temporary input file")
-        except Exception as e:
-            print(f"Error writing to temporary input file: {str(e)}")
-            return None
+            # Write the input file to a temporary file
+            try:
+                with open(temp_input, "wb") as f:
+                    input_data = input_file.read()
+                    f.write(input_data)
+                    print(f"Wrote {len(input_data)} bytes to temporary input file")
+            except Exception as e:
+                print(f"Error writing to temporary input file: {str(e)}")
+                return None
 
-        try:
             # Get the duration of the input file
             probe = ffmpeg.probe(temp_input)
             duration = float(probe["streams"][0]["duration"])
@@ -66,12 +67,14 @@ def convert_to_wav(input_file: BinaryIO) -> Optional[bytes]:
                 )
 
             return wav_data
-        except ffmpeg.Error as e:
-            print("stdout:", e.stdout.decode("utf8"))
-            print("stderr:", e.stderr.decode("utf8"))
-        except Exception as e:
-            print(f"An unexpected error occurred: {str(e)}")
-        return None
+
+    except ffmpeg.Error as e:
+        print("An FFmpeg error occurred:")
+        print("stdout:", e.stdout.decode("utf8"))
+        print("stderr:", e.stderr.decode("utf8"))
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+    return None
 
 
 def prepare_audio(filename: str) -> bytes:
@@ -132,11 +135,15 @@ def segment_audio(wav_data: bytes, segment_duration: int) -> List[AudioSegment]:
     return audio_segments
 
 
-def transcribe_audio_segment(audio_segment):
-    return whisper.transcribe_audio_segment(audio_segment)
+def transcribe_audio(wav_data: bytes) -> WhisperOutput:
+    """_summary_
 
+    Args:
+        wav_data (bytes): _description_
 
-def transcribe_audio(wav_data):
+    Returns:
+        WhisperOutput: _description_
+    """
     audio_segments = segment_audio(wav_data, 100000)
     n_segments = len(audio_segments)
     print(
@@ -149,7 +156,7 @@ def transcribe_audio(wav_data):
             print(
                 f"Submitting segment {i+1}/{n_segments} for transcription (duration: {len(segment)/1000} seconds)"
             )
-            future = executor.submit(transcribe_audio_segment, segment)
+            future = executor.submit(whisper.transcribe_audio_segment, segment)
             futures.append(future)
 
         transcribed_audio_segments = []
@@ -179,10 +186,6 @@ def transcribe_audio(wav_data):
             or transcribed_audio_segments[i + 1]["start"] < segment["end"]
         ):
             time_offset = segment["end"]
-
-        # Convert timestamps to HH:MM:SS format
-        segment["start"] = utils.convert_to_timestamp(segment["start"])
-        segment["end"] = utils.convert_to_timestamp(segment["end"])
 
     print(f"Total transcribed segments: {len(transcribed_audio_segments)}")
     if transcribed_audio_segments:
