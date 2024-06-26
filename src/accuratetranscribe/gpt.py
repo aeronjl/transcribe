@@ -7,6 +7,7 @@ from .openai import OpenAIClient
 client = OpenAIClient()
 openai = client.get_openai()
 
+
 def generate_system_prompt(speakers: Optional[int] = None) -> str:
     if speakers == None:
         speaker_prompt = "at least one respondent"
@@ -14,7 +15,7 @@ def generate_system_prompt(speakers: Optional[int] = None) -> str:
         speaker_prompt = "one respondent"
     else:
         speaker_prompt = f"{speakers} respondents"
-        
+
     system_prompt = f"""
     You are a helpful assistant whose job it is to label a transcript according to who is speaking.
     You will see a transcript from a conversation between an interviewer and {speaker_prompt}.
@@ -23,7 +24,7 @@ def generate_system_prompt(speakers: Optional[int] = None) -> str:
     Only add necessary punctuation such as periods, commas, and capitalization, and use only the context provided.
     You must return your response as a properly formatted JSON.
     """
-    
+
     examples = """
     \n\n
     --- Examples ---
@@ -68,33 +69,29 @@ def generate_system_prompt(speakers: Optional[int] = None) -> str:
     
     -- End of Examples --\n\n
     """
-    
+
     system_prompt = system_prompt + examples
-    
+
     return system_prompt
 
+
 def process_transcription(chunk, system_prompt):
-    
+
     t = time.time()
     completion = openai.chat.completions.create(
         model="gpt-4o",
-        response_format={ "type" : "json_object" },
+        response_format={"type": "json_object"},
         messages=[
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": chunk
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": chunk},
         ],
-        temperature=0.2
+        temperature=0.2,
     )
     elapsed = time.time() - t
     print(f"Processed transcription segment. Elapsed: {elapsed} seconds.")
 
-    return json.loads(completion)
+    return completion
+
 
 # Main execution
 if __name__ == "__main__":
