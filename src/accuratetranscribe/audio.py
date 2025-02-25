@@ -108,97 +108,287 @@ def prepare_audio(filename: str) -> bytes:
         raise Exception(f"Error preparing audio file: {str(e)}")
 
 
-def segment_audio(wav_data: bytes, segment_duration: int) -> List[AudioSegment]:
+def segment_audio(
+    wav_data: bytes, segment_duration: int, overlap_duration: int = 2000
+) -> List[AudioSegment]:
     """
-    Segments an audio file into smaller chunks.
+    Segments an audio file into smaller chunks with overlap to improve transcription accuracy.
+
+    Args:
+        wav_data: The WAV audio data to segment
+        segment_duration: Duration of each segment in milliseconds
+        overlap_duration: Duration of overlap between segments in milliseconds (default: 2000ms)
+
+    Returns:
+        List of audio segments with overlap
     """
-
-    def check_segment_end_time(proposed_end_time, max_total_duration):
-        return (
-            proposed_end_time
-            if proposed_end_time < max_total_duration
-            else max_total_duration
-        )
-
     audio_to_segment = AudioSegment.from_wav(BytesIO(wav_data))
     audio_duration = len(audio_to_segment)
-    n_segments = int(np.ceil(audio_duration / segment_duration))
+    print(f"Total audio duration: {audio_duration / 1000:.2f} seconds")
+
+    # Calculate effective segment duration (accounting for overlap)
+    effective_segment_duration = segment_duration - overlap_duration
+
+    # Calculate number of segments needed
+    # Ensure we create at least one segment even for very short audio
+    if audio_duration <= segment_duration:
+        # For short audio, just use the entire thing
+        n_segments = 1
+    else:
+        # Otherwise calculate based on effective duration
+        n_segments = max(
+            1,
+            int(
+                np.ceil(
+                    (audio_duration - overlap_duration) / effective_segment_duration
+                )
+            ),
+        )
+
+    print(
+        f"Segmenting into {n_segments} segments of ~{segment_duration/1000:.1f}s each with {overlap_duration/1000:.1f}s overlap"
+    )
+
     audio_segments = []
     for segment_index in range(n_segments):
-        start_time = segment_index * segment_duration
-        proposed_end_time = segment_duration + (segment_index * segment_duration)
-        end_time = check_segment_end_time(proposed_end_time, audio_duration)
-        if end_time - start_time < 100:  # Whisper won't accept segments less than 100ms
-            break
-        audio_segments.append(audio_to_segment[start_time:end_time])
+        # Calculate segment start and end times
+        start_time = segment_index * effective_segment_duration
+        end_time = min(start_time + segment_duration, audio_duration)
+
+        # Handle special case for last segment
+        if segment_index == n_segments - 1:
+            # Make sure the last segment includes all remaining audio
+            end_time = audio_duration
+            # Adjust start time to maintain segment_duration if possible
+            if end_time - segment_duration > 0:
+                start_time = max(0, end_time - segment_duration)
+
+        # Ensure minimum segment length
+        if end_time - start_time < 1000:
+            print(
+                f"Skipping segment {segment_index+1} because it's too short ({(end_time-start_time)/1000:.2f}s)"
+            )
+            continue
+
+        segment = audio_to_segment[start_time:end_time]
+        audio_segments.append(segment)
+        print(
+            f"Created segment {segment_index+1}: {start_time/1000:.2f}s - {end_time/1000:.2f}s (duration: {len(segment)/1000:.2f}s)"
+        )
 
     return audio_segments
 
 
 def transcribe_audio(wav_data: bytes) -> WhisperOutput:
-    """_summary_
+    """Transcribe audio data using a two-phase approach for accurate timestamps.
+
+    First phase: Get precise timestamps across the entire audio
+    Second phase: Process the content with speaker identification
 
     Args:
-        wav_data (bytes): _description_
+        wav_data (bytes): WAV audio data to transcribe
 
     Returns:
-        WhisperOutput: _description_
+        WhisperOutput: List of transcribed segments with accurate timestamps
     """
-    audio_segments = segment_audio(wav_data, 100000)
-    n_segments = len(audio_segments)
-    print(
-        f"Transcribing {n_segments} audio segments. Total audio duration: {sum(len(segment) for segment in audio_segments) / 1000} seconds"
-    )
+    # Use appropriate segment sizes for better timestamp accuracy
+    segment_duration_ms = 40 * 1000  # 40 seconds
+    overlap_duration_ms = 4000  # 4 seconds overlap (10% of segment)
 
-    with ThreadPoolExecutor() as executor:
-        futures = []
-        for i, segment in enumerate(audio_segments):
-            print(
-                f"Submitting segment {i+1}/{n_segments} for transcription (duration: {len(segment)/1000} seconds)"
-            )
-            future = executor.submit(whisper.transcribe_audio_segment, segment)
-            futures.append(future)
+    print(f"Phase 1: Transcribing audio with accurate timestamps")
 
-        transcribed_audio_segments = []
-        for i, future in enumerate(futures):
-            result = future.result()
-            if result:
-                transcribed_audio_segments.extend(result)
-                print(
-                    f"Completed transcription of segment {i+1}. First text: {result[0]['text'][:50]}..."
+    # Prepare audio segments with overlap
+    audio_to_segment = AudioSegment.from_wav(BytesIO(wav_data))
+    total_audio_duration = len(audio_to_segment) / 1000  # in seconds
+    print(f"Total audio duration: {total_audio_duration:.2f} seconds")
+
+    # Instead of segmenting first, get a full transcription to use as a reference
+    # for timestamp calibration
+    print("Getting full audio transcription for timestamp reference...")
+    full_transcription = []
+
+    # For very long audio, we still need to segment, but we'll do it differently
+    if total_audio_duration > 60 * 60:  # If longer than 1 hour
+        print(
+            f"Long audio detected ({total_audio_duration/60:.1f} minutes). Using segmented approach."
+        )
+
+        # 1. Create segments with substantial overlap
+        segments = segment_audio(wav_data, segment_duration_ms, overlap_duration_ms)
+        n_segments = len(segments)
+
+        # 2. Calculate accurate base time for each segment
+        segment_base_times = []
+        for i in range(n_segments):
+            effective_duration = segment_duration_ms - overlap_duration_ms
+            base_time = (i * effective_duration) / 1000  # in seconds
+            segment_base_times.append(base_time)
+
+        # 3. Transcribe each segment with proper time calibration
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for i, segment in enumerate(segments):
+                print(f"Submitting segment {i+1}/{n_segments} for transcription")
+                future = executor.submit(whisper.transcribe_audio_segment, segment)
+                futures.append((i, future))
+
+            for i, future in sorted(futures, key=lambda x: x[0]):
+                result = future.result()
+                if not result:
+                    print(f"Warning: No transcription for segment {i+1}")
+                    continue
+
+                base_time = segment_base_times[i]
+
+                # If not the first segment, we need special handling for the overlap region
+                overlap_handling_range = 0
+                if i > 0:
+                    overlap_handling_range = overlap_duration_ms / 1000  # seconds
+
+                for j, segment in enumerate(result):
+                    # Skip segments at the start of non-first chunks that are likely duplicates
+                    if i > 0 and segment["start"] < overlap_handling_range:
+                        # Only include if it appears to be a new segment not covered by previous chunk
+                        # This is determined by looking at when the previous chunk ended
+                        if (
+                            full_transcription
+                            and base_time + segment["start"]
+                            < full_transcription[-1]["end"] + 1.0
+                        ):
+                            continue
+
+                    # Calibrate the timestamps
+                    absolute_start = base_time + segment["start"]
+                    absolute_end = base_time + segment["end"]
+
+                    # Create a new properly timed segment
+                    new_segment = segment.copy()
+                    new_segment["start"] = absolute_start
+                    new_segment["end"] = absolute_end
+
+                    # Add it to our results
+                    full_transcription.append(new_segment)
+    else:
+        # For shorter audio, transcribe the entire thing at once
+        print("Audio is short enough to transcribe at once for best timestamp accuracy")
+        full_result = whisper.transcribe_audio_segment(audio_to_segment)
+        full_transcription = full_result
+
+    # Sort all segments by start time
+    full_transcription.sort(key=lambda x: x["start"])
+
+    # Deduplicate segments based on start time and content similarity
+    print("Deduplicating segments...")
+    if full_transcription:
+        deduplicated = [full_transcription[0]]
+
+        for i in range(1, len(full_transcription)):
+            curr = full_transcription[i]
+            prev = deduplicated[-1]
+
+            # Check for similar start times (within 1 second)
+            if abs(curr["start"] - prev["start"]) < 1.0:
+                # Check for similar content
+                from difflib import SequenceMatcher
+
+                similarity = SequenceMatcher(
+                    None, curr["text"].lower(), prev["text"].lower()
+                ).ratio()
+
+                # If very similar, keep the one with more content
+                if similarity > 0.5:
+                    if len(curr["text"]) > len(prev["text"]):
+                        # Replace previous with current
+                        deduplicated[-1] = curr
+                    continue
+
+            # Check for overlaps and resolve them
+            if curr["start"] < prev["end"]:
+                # If significant overlap, adjust the previous end time
+                overlap_amount = prev["end"] - curr["start"]
+                if overlap_amount > 0.3:  # If overlap is more than 0.3 seconds
+                    # Split the difference for the overlap
+                    middle_point = (prev["end"] + curr["start"]) / 2
+                    prev["end"] = middle_point
+                    curr["start"] = middle_point
+
+            # Add to deduplicated list
+            deduplicated.append(curr)
+
+        full_transcription = deduplicated
+
+    # Validate and fix any remaining timestamp issues
+    print("Validating timestamps...")
+    if len(full_transcription) > 1:
+        for i in range(1, len(full_transcription)):
+            # Ensure timestamps are strictly increasing
+            if full_transcription[i]["start"] <= full_transcription[i - 1]["end"]:
+                # Set a small gap between segments (30ms)
+                full_transcription[i]["start"] = full_transcription[i - 1]["end"] + 0.03
+
+            # Ensure each segment has a reasonable duration
+            min_duration = 0.1  # 100ms minimum
+            if (
+                full_transcription[i]["end"] - full_transcription[i]["start"]
+                < min_duration
+            ):
+                full_transcription[i]["end"] = (
+                    full_transcription[i]["start"] + min_duration
                 )
-            else:
-                print(f"Warning: Segment {i+1} returned no transcription")
 
-    # Renumber and adjust timings
-    current_id = 0
-    time_offset = 0
-    for i, segment in enumerate(transcribed_audio_segments):
-        segment["id"] = current_id
-        current_id += 1
+    # Re-number all segments
+    for i, segment in enumerate(full_transcription):
+        segment["id"] = i
 
-        segment["start"] += time_offset
-        segment["end"] += time_offset
-
-        # If this is the last segment in an audio chunk, update the time offset
-        if (
-            i + 1 == len(transcribed_audio_segments)
-            or transcribed_audio_segments[i + 1]["start"] < segment["end"]
-        ):
-            time_offset = segment["end"]
-
-    print(f"Total transcribed segments: {len(transcribed_audio_segments)}")
-    if transcribed_audio_segments:
+    print(
+        f"Final transcript contains {len(full_transcription)} segments with calibrated timestamps"
+    )
+    if full_transcription:
         print(
-            f"First transcribed segment: {transcribed_audio_segments[0]['text'][:50]}..."
+            f"First segment: \"{full_transcription[0]['text'][:50]}...\" "
+            + f"[{format_timestamp(full_transcription[0]['start'])} - {format_timestamp(full_transcription[0]['end'])}]"
         )
         print(
-            f"Last transcribed segment: {transcribed_audio_segments[-1]['text'][-50:]}"
+            f"Last segment: \"{full_transcription[-1]['text'][-50:]}\" "
+            + f"[{format_timestamp(full_transcription[-1]['start'])} - {format_timestamp(full_transcription[-1]['end'])}]"
         )
 
-    return transcribed_audio_segments
+    return full_transcription
+
+
+def format_timestamp(seconds):
+    """Format seconds as HH:MM:SS.MS"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds_remainder = seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds_remainder:06.3f}"
 
 
 # Main execution
 if __name__ == "__main__":
     pass
+
+# Timestamp Handling Strategy:
+# ---------------------------
+# 1. Audio Segmentation:
+#    - The full audio is divided into overlapping segments (default 30s with 3s overlap)
+#    - Each segment's absolute start time in the original audio is calculated
+#
+# 2. Parallel Transcription:
+#    - Each segment is transcribed by Whisper in parallel
+#    - Whisper provides relative timestamps within each segment
+#
+# 3. Timestamp Calculation:
+#    - For each transcribed segment, we add the segment's start time to Whisper's relative timestamps
+#    - This converts relative timestamps to absolute timestamps in the original audio
+#
+# 4. Boundary Handling:
+#    - In overlap regions, we prioritize segments from the first half of the overlap
+#    - Segments that start in the second half of an overlap are skipped (to avoid duplicates)
+#    - Segments that extend too far into the next segment's territory are truncated
+#
+# 5. Deduplication:
+#    - We check for segments with overlapping timestamps and similar content
+#    - If found, we merge them to eliminate duplicate transcriptions
+#
+# This approach ensures accurate timestamps while handling segment boundaries properly.

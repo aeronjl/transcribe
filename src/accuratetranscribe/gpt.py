@@ -19,10 +19,19 @@ def generate_system_prompt(speakers: Optional[int] = None) -> str:
     system_prompt = f"""
     You are a helpful assistant whose job it is to label a transcript according to who is speaking.
     You will see a transcript from a conversation between an interviewer and {speaker_prompt}.
-    Reorganise and label the transcript so it is clear who is speaking. Guess the name of the respondent from the context where possible.
-    Remove filler words and phrases without changing the meaning of the transcript.
-    Only add necessary punctuation such as periods, commas, and capitalization, and use only the context provided.
-    You must return your response as a properly formatted JSON.
+    
+    IMPORTANT: Your primary goal is to preserve ALL content from the transcript. Do not skip, summarize, or condense any parts.
+    
+    Follow these steps:
+    1. Reorganise and label the transcript so it is clear who is speaking
+    2. Guess the name of the respondent from the context where possible
+    3. Preserve ALL content - even if it seems unimportant or repetitive
+    4. Remove only excessive filler words (um, uh, er) without changing the meaning or removing ANY content
+    5. Only add necessary punctuation such as periods, commas, and capitalization
+    
+    CRITICAL: Every sentence and every exchange must be preserved in your output. Do not skip any section regardless of how trivial it may seem.
+    
+    You must return your response as a properly formatted JSON with a unique numbered key for each speaker turn.
     """
 
     examples = """
@@ -64,6 +73,25 @@ def generate_system_prompt(speakers: Optional[int] = None) -> str:
         "2": {
             "Speaker" : "Interviewer",
             "Content" : "I see. Thank you, Doctor. For our next exercise we're going to look at some headline statements. Take a look at these and tell me what you think."
+        }
+    }
+    
+    Example 3 (notice how all content is preserved, even the partial repetitions):
+
+    Well I think that, um, the key issue here is really about, you know, climate change. Climate change is the big one. And we have to address it now, we can't wait any longer to address it. We really can't. So what do you think about that perspective? I think you're right, climate change is the most important issue facing us today, and we need to take immediate action before it's too late.
+
+    {
+        "1" : {
+            "Speaker" : "Respondent 1",
+            "Content" : "Well I think that the key issue here is really about climate change. Climate change is the big one. And we have to address it now, we can't wait any longer to address it. We really can't."
+        },
+        "2" : {
+            "Speaker" : "Interviewer",
+            "Content" : "So what do you think about that perspective?"
+        },
+        "3" : {
+            "Speaker" : "Respondent 2",
+            "Content" : "I think you're right, climate change is the most important issue facing us today, and we need to take immediate action before it's too late."
         }
     }
     
